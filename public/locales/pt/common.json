@@ -222,7 +222,7 @@
   "common.severity.medium": "Médio",
   "common.tagline": "Sua privacidade. Diagnosticada.",
   "common.tipMessage": "am-i.exposed é gratuito e de código aberto. Se ajudou você, considere uma gorjeta.",
-  "common.tipScanQR": "Escaneie para enviar gorjeta via Bitcoin, Lightning ou Liquid - ou copie o endereço Lightning abaixo",
+  "common.tipScanQR": "Escaneie para enviar gorjeta via Bitcoin, Lightning ou Liquid",
   "common.tipToastMessage": "Esta ferramenta é gratuita e de código aberto. Dê uma gorjeta para mantê-la funcionando.",
   "common.tor": "Tor",
   "common.undo": "Desfazer",

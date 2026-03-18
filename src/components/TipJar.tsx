@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Heart, ChevronDown, Copy, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { copyToClipboard } from "@/lib/clipboard";
-import { LN_ADDRESS, COINOS_PAY_URL } from "@/lib/constants";
+import { COINOS_PAY_URL } from "@/lib/constants";
 export function TipJar() {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(() => {
@@ -18,7 +18,7 @@ export function TipJar() {
   useEffect(() => () => clearTimeout(timerRef.current), []);
 
   const handleCopy = async () => {
-    const ok = await copyToClipboard(LN_ADDRESS);
+    const ok = await copyToClipboard(COINOS_PAY_URL);
     if (ok) {
       setCopied(true);
       clearTimeout(timerRef.current);
@@ -68,8 +68,13 @@ export function TipJar() {
             <div className="px-4 pb-4 space-y-3">
               <div className="border-t border-card-border pt-3" />
 
-              <div className="flex justify-center">
-                <div className="bg-white rounded-lg p-3">
+              <a
+                href={COINOS_PAY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex justify-center cursor-pointer"
+              >
+                <div className="bg-white rounded-lg p-3 hover:opacity-90 transition-opacity">
                   <QRCodeSVG
                     value={COINOS_PAY_URL}
                     size={160}
@@ -79,16 +84,21 @@ export function TipJar() {
                     aria-label={t("common.qrLabel", { defaultValue: "Bitcoin payment QR code" })}
                   />
                 </div>
-              </div>
+              </a>
 
               <div className="text-center space-y-2">
                 <p className="text-xs text-muted">
-                  {t("common.tipScanQR", { defaultValue: "Scan to tip via Bitcoin, Lightning, or Liquid - or copy the Lightning address below" })}
+                  {t("common.tipScanQR", { defaultValue: "Scan to tip via Bitcoin, Lightning, or Liquid" })}
                 </p>
                 <div className="flex items-center justify-center gap-2">
-                  <code className="text-xs text-bitcoin bg-bitcoin/10 px-2 py-1 rounded font-mono break-all">
-                    {LN_ADDRESS}
-                  </code>
+                  <a
+                    href={COINOS_PAY_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-bitcoin hover:text-bitcoin/80 bg-bitcoin/10 px-2 py-1 rounded font-mono break-all transition-colors"
+                  >
+                    {COINOS_PAY_URL.replace("https://", "")}
+                  </a>
                   <button
                     onClick={handleCopy}
                     className="inline-flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors cursor-pointer px-2 py-2 rounded border border-card-border"

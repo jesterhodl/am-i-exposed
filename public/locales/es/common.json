@@ -222,7 +222,7 @@
   "common.severity.medium": "Medio",
   "common.tagline": "Tu privacidad. Diagnosticada.",
   "common.tipMessage": "am-i.exposed es gratuito y de código abierto. Si te fue útil, considera dejar una propina.",
-  "common.tipScanQR": "Escanea para enviar propina via Bitcoin, Lightning o Liquid - o copia la dirección Lightning a continuación",
+  "common.tipScanQR": "Escanea para enviar propina via Bitcoin, Lightning o Liquid",
   "common.tipToastMessage": "Esta herramienta es gratuita y de código abierto. Deja una propina para mantenerla funcionando.",
   "common.tor": "Tor",
   "common.undo": "Deshacer",

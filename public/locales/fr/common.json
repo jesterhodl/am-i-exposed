@@ -222,7 +222,7 @@
   "common.severity.medium": "Moyen",
   "common.tagline": "Votre confidentialité. Diagnostiquée.",
   "common.tipMessage": "am-i.exposed est gratuit et open source. Si cela vous a aidé, pensez à laisser un pourboire.",
-  "common.tipScanQR": "Scannez pour envoyer un pourboire via Bitcoin, Lightning ou Liquid - ou copiez l'adresse Lightning ci-dessous",
+  "common.tipScanQR": "Scannez pour envoyer un pourboire via Bitcoin, Lightning ou Liquid",
   "common.tipToastMessage": "Cet outil est gratuit et open source. Laissez un pourboire pour le maintenir en ligne.",
   "common.tor": "Tor",
   "common.undo": "Annuler",

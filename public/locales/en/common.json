@@ -222,7 +222,7 @@
   "common.severity.medium": "Medium",
   "common.tagline": "Your privacy. Diagnosed.",
   "common.tipMessage": "am-i.exposed is free and open source. If it helped you, consider a tip.",
-  "common.tipScanQR": "Scan to tip via Bitcoin, Lightning, or Liquid - or copy the Lightning address below",
+  "common.tipScanQR": "Scan to tip via Bitcoin, Lightning, or Liquid",
   "common.tipToastMessage": "This tool is free and open source. Tip to keep it running.",
   "common.tor": "Tor",
   "common.undo": "Undo",

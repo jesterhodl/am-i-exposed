@@ -222,7 +222,7 @@
   "common.severity.medium": "Mittel",
   "common.tagline": "Deine Privatsphäre. Diagnostiziert.",
   "common.tipMessage": "am-i.exposed ist kostenlos und Open Source. Wenn es dir geholfen hat, erwäge ein Trinkgeld.",
-  "common.tipScanQR": "Scannen, um via Bitcoin, Lightning oder Liquid Trinkgeld zu geben - oder die Lightning-Adresse unten kopieren",
+  "common.tipScanQR": "Scannen, um via Bitcoin, Lightning oder Liquid Trinkgeld zu geben",
   "common.tipToastMessage": "Dieses Tool ist kostenlos und Open Source. Spende, um den Betrieb aufrechtzuerhalten.",
   "common.tor": "Tor",
   "common.undo": "Ruckgangig",
