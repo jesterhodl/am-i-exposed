@@ -92,6 +92,9 @@ export function Header() {
               <span className="text-xl sm:text-2xl font-bold tracking-tight text-foreground select-none whitespace-nowrap">
                 am-i.<span className="gradient-text">exposed</span>
               </span>
+              <span className="text-[9px] font-semibold text-bitcoin/70 bg-bitcoin/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider select-none">
+                beta
+              </span>
               {devMode && (
                 <span className="text-[10px] font-bold text-severity-medium bg-severity-medium/15 px-1.5 py-0.5 rounded">
                   DEV
