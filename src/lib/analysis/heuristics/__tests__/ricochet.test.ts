@@ -125,4 +125,52 @@ describe("analyzeRicochet", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0].id).toBe("ricochet-hop0");
   });
+
+  it("includes ricochetOutputIndex param pointing to the largest non-fee output", () => {
+    const tx = makeTx({
+      vin: [makeVin({ prevout: { scriptpubkey: "", scriptpubkey_asm: "", scriptpubkey_type: "v0_p2wpkh", scriptpubkey_address: "bc1qsender000000000000000000000000000001", value: 500_000 } })],
+      vout: [
+        makeVout({ scriptpubkey_address: ASHIGARU_FEE_ADDRESS, value: ASHIGARU_FEE_SATS }), // vout 0 = fee
+        makeVout({ value: 300_000 }), // vout 1 = ricochet amount (largest non-fee)
+        makeVout({ value: 98_500 }),  // vout 2 = change
+      ],
+    });
+
+    const { findings } = analyzeRicochet(tx);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].params).toBeDefined();
+    expect(findings[0].params!.ricochetOutputIndex).toBe(1);
+    expect(findings[0].params!.hop0Txid).toBe(tx.txid);
+  });
+
+  it("identifies correct ricochet output when fee is last", () => {
+    const tx = makeTx({
+      vin: [makeVin()],
+      vout: [
+        makeVout({ value: 300_000 }), // vout 0 = ricochet amount (largest non-fee)
+        makeVout({ value: 98_500 }),   // vout 1 = change
+        makeVout({ scriptpubkey_address: ASHIGARU_FEE_ADDRESS, value: ASHIGARU_FEE_SATS }), // vout 2 = fee
+      ],
+    });
+
+    const { findings } = analyzeRicochet(tx);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].params!.ricochetOutputIndex).toBe(0);
+  });
+
+  it("identifies correct ricochet output with 4+ outputs", () => {
+    const tx = makeTx({
+      vin: [makeVin(), makeVin()],
+      vout: [
+        makeVout({ scriptpubkey_address: ASHIGARU_FEE_ADDRESS, value: ASHIGARU_FEE_SATS }), // vout 0 = fee
+        makeVout({ value: 48_000 }),   // vout 1 = small change
+        makeVout({ value: 200_000 }),  // vout 2 = ricochet amount (largest non-fee)
+        makeVout({ value: 150_000 }),  // vout 3 = another output
+      ],
+    });
+
+    const { findings } = analyzeRicochet(tx);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].params!.ricochetOutputIndex).toBe(2);
+  });
 });

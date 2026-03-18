@@ -40,6 +40,20 @@ export const analyzeRicochet: TxHeuristic = (tx) => {
 
   if (!feeOutput) return { findings };
 
+  // Identify the ricochet output: the one that is NOT the fee address output
+  // and NOT the smallest remaining output (change). It is typically the largest non-fee output.
+  const feeOutputIndex = tx.vout.indexOf(feeOutput);
+  const nonFeeOutputs = tx.vout
+    .map((o, i) => ({ output: o, index: i }))
+    .filter((_, i) => i !== feeOutputIndex);
+
+  // Sort non-fee outputs by value descending; the largest is the ricochet output,
+  // the rest are change. If only one non-fee output exists, it is the ricochet output.
+  const sorted = [...nonFeeOutputs].sort((a, b) => b.output.value - a.output.value);
+  const ricochetOutputIndex = sorted.length > 0 ? sorted[0].index : -1;
+
+  if (ricochetOutputIndex < 0) return { findings };
+
   findings.push({
     id: "ricochet-hop0",
     severity: "good",
@@ -54,6 +68,10 @@ export const analyzeRicochet: TxHeuristic = (tx) => {
       "Ricochet is a good practice when sending to exchanges or services that perform chain analysis. " +
       "For even better privacy, use the PayNym variant which eliminates the detectable fee address fingerprint.",
     scoreImpact: 5,
+    params: {
+      ricochetOutputIndex,
+      hop0Txid: tx.txid,
+    },
   });
 
   return { findings };
