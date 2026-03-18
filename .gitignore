@@ -66,6 +66,25 @@ scripts/glossary-capture.mjs
 !.cache/entity-data/curated/
 !.cache/entity-data/custom/
 !.cache/entity-data/.bithypha-state.json
+.cache/entity-data/curated/*
+!.cache/entity-data/curated/bankruptcy-exchange-addresses.csv
+!.cache/entity-data/curated/bithypha-*.csv
+!.cache/entity-data/curated/darknet-market-addresses.csv
+!.cache/entity-data/curated/doj-seizure-addresses.csv
+!.cache/entity-data/curated/exchange-academic-addresses.csv
+!.cache/entity-data/curated/exchange-modern-curated.csv
+!.cache/entity-data/curated/exchange-por-forensics-addresses.csv
+!.cache/entity-data/curated/exchange-targeted-research.csv
+!.cache/entity-data/curated/exchange-tier*.csv
+!.cache/entity-data/curated/github-tagged-addresses.csv
+!.cache/entity-data/curated/mining-pool-addresses.csv
+!.cache/entity-data/curated/mixer-addresses.csv
+!.cache/entity-data/curated/ofac-entity-labeled.csv
+!.cache/entity-data/curated/p2p-platform-addresses.csv
+!.cache/entity-data/curated/proof-of-reserves.csv
+!.cache/entity-data/curated/ransomware-addresses.csv
+!.cache/entity-data/curated/scam-ponzi-addresses.csv
+scripts/*.py
 public/data/entity-filter-full.bin
 public/data/entity-index-full.bin
 
