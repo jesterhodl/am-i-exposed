@@ -90,6 +90,7 @@ After rebuilding, commit the updated files in `public/wasm/boltzmann/`. The work
 ## Deployment Rules
 
 - **NEVER deploy without explicit user permission.** Always ask first.
+- **NEVER git push without explicit user permission.** Commit freely, but always ask before pushing to remote.
 - **NEVER edit code directly on the VPS.** All changes happen locally, then commit, push, pull on server.
 - **NEVER commit feedback files** or any file containing real names of testers/collaborators. Use `.gitignore`.
 - **NEVER expose tester identities** in commit messages, code comments, or any pushed file.

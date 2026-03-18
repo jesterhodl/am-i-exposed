@@ -17,17 +17,25 @@ const DB_PATH = join(CACHE_DIR, "cache.sqlite");
 const MAX_ENTRIES = 10_000;
 
 let db: Database.Database | null = null;
+let dbUnavailable = false;
 
-function getDb(): Database.Database {
+function getDb(): Database.Database | null {
   if (db) return db;
+  if (dbUnavailable) return null;
 
-  if (!existsSync(CACHE_DIR)) {
-    mkdirSync(CACHE_DIR, { recursive: true });
+  try {
+    if (!existsSync(CACHE_DIR)) {
+      mkdirSync(CACHE_DIR, { recursive: true });
+    }
+
+    db = new Database(DB_PATH);
+    db.pragma("journal_mode = WAL");
+    db.pragma("synchronous = NORMAL");
+  } catch {
+    // Native addon unavailable (e.g., standalone binary without native modules)
+    dbUnavailable = true;
+    return null;
   }
-
-  db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
-  db.pragma("synchronous = NORMAL");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS cache (
@@ -46,7 +54,10 @@ function getDb(): Database.Database {
  * Get a cached value by key. Returns undefined if not found or expired.
  */
 export function cacheGet<T>(key: string): T | undefined {
-  const row = getDb()
+  const d = getDb();
+  if (!d) return undefined;
+
+  const row = d
     .prepare(
       "SELECT value FROM cache WHERE key = ? AND (expires_at = 0 OR expires_at > ?)",
     )
@@ -65,14 +76,15 @@ export function cacheSet(
   value: unknown,
   ttlMs?: number,
 ): void {
+  const d = getDb();
+  if (!d) return;
+
   const now = Date.now();
   const expiresAt = ttlMs ? now + ttlMs : 0;
 
-  getDb()
-    .prepare(
-      "INSERT OR REPLACE INTO cache (key, value, stored_at, expires_at) VALUES (?, ?, ?, ?)",
-    )
-    .run(key, JSON.stringify(value), now, expiresAt);
+  d.prepare(
+    "INSERT OR REPLACE INTO cache (key, value, stored_at, expires_at) VALUES (?, ?, ?, ?)",
+  ).run(key, JSON.stringify(value), now, expiresAt);
 
   // Probabilistic eviction (5% of writes) - same pattern as idb-cache.ts
   if (Math.random() < 0.05) {
@@ -87,25 +99,26 @@ export function cacheSet(
  * Delete a single entry.
  */
 export function cacheDelete(key: string): void {
-  getDb().prepare("DELETE FROM cache WHERE key = ?").run(key);
+  getDb()?.prepare("DELETE FROM cache WHERE key = ?").run(key);
 }
 
 /**
  * Clear all cached entries.
  */
 export function cacheClear(): void {
-  getDb().exec("DELETE FROM cache");
-  // Reclaim disk space
-  getDb().exec("VACUUM");
+  const d = getDb();
+  if (!d) return;
+  d.exec("DELETE FROM cache");
+  d.exec("VACUUM");
 }
 
 /**
  * Count cached entries (including expired - they get cleaned lazily).
  */
 export function cacheCount(): number {
-  const row = getDb()
-    .prepare("SELECT COUNT(*) as cnt FROM cache")
-    .get() as { cnt: number };
+  const d = getDb();
+  if (!d) return 0;
+  const row = d.prepare("SELECT COUNT(*) as cnt FROM cache").get() as { cnt: number };
   return row.cnt;
 }
 
@@ -115,6 +128,7 @@ export function cacheCount(): number {
  */
 export function cacheEvict(maxEntries: number): number {
   const d = getDb();
+  if (!d) return 0;
 
   // First purge expired entries
   const purged = d
@@ -147,6 +161,8 @@ export function cacheStats(): {
   oldestAt: number;
 } {
   const d = getDb();
+  if (!d) return { entries: 0, sizeBytes: 0, expired: 0, oldestAt: 0 };
+
   const total = cacheCount();
   const now = Date.now();
 

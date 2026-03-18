@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { initEntityFilter } from "./adapters/entity-loader";
@@ -14,9 +14,17 @@ const dir = typeof __dirname !== "undefined"
   ? __dirname
   : dirname(fileURLToPath(import.meta.url));
 
-const pkg = JSON.parse(
-  readFileSync(join(dir, "..", "package.json"), "utf-8"),
-);
+// Read version from package.json if available, fall back to hardcoded
+function getVersion(): string {
+  const pkgPath = join(dir, "..", "package.json");
+  if (existsSync(pkgPath)) {
+    try {
+      return JSON.parse(readFileSync(pkgPath, "utf-8")).version;
+    } catch { /* fall through */ }
+  }
+  return "0.33.0";
+}
+const version = getVersion();
 
 const program = new Command();
 
@@ -25,7 +33,7 @@ program
   .description(
     "Bitcoin privacy scanner - analyze transactions, addresses, and wallets for chain analysis exposure",
   )
-  .version(pkg.version)
+  .version(version)
   .option("--json", "Output structured JSON (suppresses spinner and colors)")
   .option(
     "--network <net>",
