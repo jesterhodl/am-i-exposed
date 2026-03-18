@@ -33,6 +33,8 @@ await build({
     "@scure/bip32",
     "@scure/btc-signer",
     "better-sqlite3",
+    "@modelcontextprotocol/sdk",
+    "zod",
   ],
   // Banner with shebang for CLI binary
   banner: {

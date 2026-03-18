@@ -128,6 +128,16 @@ program
     await run(() => chainTrace(txid, mergeOpts(opts)));
   });
 
+// ---- MCP server ----
+
+program
+  .command("mcp")
+  .description("Start MCP (Model Context Protocol) server on stdio")
+  .action(async () => {
+    const { startMcpServer } = await import("./mcp/server");
+    await startMcpServer();
+  });
+
 // ---- cache management ----
 
 const cache = program
