@@ -30,4 +30,5 @@ export { analyzeHighActivityAddress } from "./high-activity-address";
 export { analyzeEntityDetection } from "./entity-detection";
 export { analyzePostMix } from "./post-mix";
 export { analyzeRicochet } from "./ricochet";
+export { analyzeUtxoAgeSpread } from "./utxo-age-spread";
 export type { TxHeuristic, AddressHeuristic, HeuristicTranslator } from "./types";

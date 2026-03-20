@@ -31,6 +31,7 @@ import {
   analyzePostMix,
   analyzeEntityDetection,
   analyzeRicochet,
+  analyzeUtxoAgeSpread,
 } from "./heuristics";
 
 // --- Transaction heuristics ---
@@ -62,6 +63,7 @@ export const TX_HEURISTICS = [
   { id: "postmix", label: "Post-mix consolidation", fn: analyzePostMix },
   { id: "entity", label: "Known entity detection", fn: analyzeEntityDetection },
   { id: "ricochet", label: "Ricochet detection", fn: analyzeRicochet },
+  { id: "utxo-age", label: "UTXO age spread", fn: analyzeUtxoAgeSpread },
 ] as const;
 
 export const ADDRESS_HEURISTICS = [

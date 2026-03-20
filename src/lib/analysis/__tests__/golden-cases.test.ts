@@ -35,7 +35,7 @@ afterEach(() => {
 /** Run analyzeTransaction with fake timer advancement */
 async function runTxAnalysis(tx: MempoolTransaction) {
   const promise = analyzeTransaction(tx);
-  // 24 heuristics * 50ms tick each = 1200ms needed
+  // 27 heuristics * 50ms tick each = 1350ms needed
   await vi.advanceTimersByTimeAsync(10000);
   return promise;
 }
@@ -57,13 +57,13 @@ describe("golden test cases - transactions", () => {
     ["Whirlpool CoinJoin", whirlpoolTx, "A+", 100],
     ["WabiSabi CoinJoin", wabisabiTx, "A+", 100],
     ["JoinMarket CoinJoin", joinmarketTx, "B", 87],
-    ["Taproot + OP_RETURN", taprootOpReturnTx, "C", 54],
-    ["Bare multisig", bareMultisigTx, "F", 12],
+    ["Taproot + OP_RETURN", taprootOpReturnTx, "D", 48],
+    ["Bare multisig", bareMultisigTx, "F", 6],
     ["OP_RETURN charley loves heidi", opReturnCharleyTx, "D", 49],
     ["Simple legacy P2PKH", simpleLegacyTx, "C", 52],
     ["Batch withdrawal 143 outputs", batchWithdrawalTx, "C", 56],
     ["Dust attack 555 sats", dustAttackTx, "F", 24],
-    ["Taproot script-path spend", taprootScriptPathTx, "C", 58],
+    ["Taproot script-path spend", taprootScriptPathTx, "D", 46],
   ] as const)(
     "%s -> grade %s, score %i",
     async (_name, tx, expectedGrade, expectedScore) => {
