@@ -4,7 +4,8 @@ import { useState, memo } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { ChevronDown, BookOpen, ExternalLink, Copy, Check } from "lucide-react";
-import type { Finding, Severity, ConfidenceLevel } from "@/lib/types";
+import type { Finding, Severity, ConfidenceLevel, AdversaryTier, TemporalityClass } from "@/lib/types";
+import { highestAdversaryTier } from "@/lib/analysis/finding-metadata";
 import { WalletIcon } from "@/components/ui/WalletIcon";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { truncateId } from "@/lib/constants";
@@ -80,6 +81,18 @@ const CONFIDENCE_STYLES: Record<ConfidenceLevel, { label: string; className: str
   low: { label: "Hint", className: "bg-severity-low/20 text-severity-low border-severity-low", tooltip: "Weak signal - may indicate a pattern but could easily be coincidence" },
 };
 
+const ADVERSARY_STYLES: Record<AdversaryTier, { label: string; className: string }> = {
+  passive_observer: { label: "Public", className: "bg-muted/20 text-muted border-card-border" },
+  kyc_exchange: { label: "KYC", className: "bg-severity-medium/20 text-severity-medium border-severity-medium" },
+  state_adversary: { label: "State", className: "bg-severity-critical/20 text-severity-critical border-severity-critical" },
+};
+
+const TEMPORALITY_STYLES: Record<TemporalityClass, { label: string; className: string }> = {
+  historical: { label: "Past", className: "bg-severity-low/15 text-severity-low border-severity-low" },
+  ongoing_pattern: { label: "Pattern", className: "bg-severity-medium/20 text-severity-medium border-severity-medium" },
+  active_risk: { label: "Active", className: "bg-severity-critical/20 text-severity-critical border-severity-critical" },
+};
+
 const SEVERITY_TOOLTIPS: Record<Severity, string> = {
   critical: "Severe privacy failure - immediate action recommended",
   high: "Significant privacy concern - should be addressed",
@@ -87,6 +100,39 @@ const SEVERITY_TOOLTIPS: Record<Severity, string> = {
   low: "Minor privacy signal - low risk but worth noting",
   good: "Positive privacy property - helps protect your privacy",
 };
+
+const ADVERSARY_DESCRIPTIONS: Record<AdversaryTier, string> = {
+  passive_observer: "anyone reading the public blockchain",
+  kyc_exchange: "exchanges or services with identity data",
+  state_adversary: "intelligence-grade chain analysis",
+};
+
+const TEMPORALITY_DESCRIPTIONS: Record<TemporalityClass, string> = {
+  historical: "This is already on-chain and cannot be undone.",
+  ongoing_pattern: "This is a behavioral pattern that can be changed going forward.",
+  active_risk: "This involves unspent funds and can be addressed right now.",
+};
+
+function TierContext({ finding, t }: { finding: Finding; t: (key: string, opts?: Record<string, unknown>) => string }) {
+  if (!finding.adversaryTiers?.length && !finding.temporality) return null;
+
+  const tier = finding.adversaryTiers?.length ? highestAdversaryTier(finding.adversaryTiers) : null;
+  const advText = tier
+    ? t(`finding.tierContext.adversary.${tier}`, { defaultValue: `Exploitable by ${ADVERSARY_DESCRIPTIONS[tier]}` })
+    : null;
+  const tempText = finding.temporality
+    ? t(`finding.tierContext.temporality.${finding.temporality}`, { defaultValue: TEMPORALITY_DESCRIPTIONS[finding.temporality] })
+    : null;
+
+  if (!advText && !tempText) return null;
+
+  return (
+    <div className="flex flex-col gap-1 text-xs text-muted">
+      {advText && <span>{advText}.</span>}
+      {tempText && <span>{tempText}</span>}
+    </div>
+  );
+}
 
 export const FindingCard = memo(function FindingCard({ finding, index, defaultExpanded = false, badge, onTxClick, proMode = false }: FindingCardProps) {
   const { t, i18n } = useTranslation();
@@ -127,6 +173,27 @@ export const FindingCard = memo(function FindingCard({ finding, index, defaultEx
             </span>
           </Tooltip>
         )}
+        {finding.adversaryTiers && finding.adversaryTiers.length > 0 && (() => {
+          const tier = highestAdversaryTier(finding.adversaryTiers);
+          const advStyle = ADVERSARY_STYLES[tier];
+          return (
+            <Tooltip content={t(`adversaryTooltip.${tier}`, { defaultValue: `Exploitable by ${tier.replace(/_/g, " ")}` })}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${advStyle.className}`}>
+                {t(`adversary.${tier}`, { defaultValue: advStyle.label })}
+              </span>
+            </Tooltip>
+          );
+        })()}
+        {finding.temporality && (() => {
+          const tempStyle = TEMPORALITY_STYLES[finding.temporality];
+          return (
+            <Tooltip content={t(`temporalityTooltip.${finding.temporality}`, { defaultValue: `Temporality: ${finding.temporality.replace(/_/g, " ")}` })}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${tempStyle.className}`}>
+                {t(`temporality.${finding.temporality}`, { defaultValue: tempStyle.label })}
+              </span>
+            </Tooltip>
+          );
+        })()}
         {badge && (
           <Tooltip content={t("results.chainBadgeTooltip", { defaultValue: "Based on backward and forward analysis of the inputs and outputs to this transaction" })}>
             <span className="text-[10px] px-1.5 py-0.5 rounded border border-card-border bg-surface-inset text-muted">
@@ -158,6 +225,7 @@ export const FindingCard = memo(function FindingCard({ finding, index, defaultEx
               <p className="text-base text-foreground leading-relaxed">
                 {t(findingKey(finding.id, "description", finding.params), { ...finding.params, defaultValue: finding.description })}
               </p>
+              <TierContext finding={finding} t={t} />
               {finding.recommendation && (
                 <div className="bg-surface-inset rounded-md px-3 py-2">
                   <p className="text-xs font-medium text-muted mb-1">

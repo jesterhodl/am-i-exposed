@@ -35,6 +35,8 @@ import { PrimaryRecommendation } from "./PrimaryRecommendation";
 import { SidebarWarnings } from "./results/SidebarWarnings";
 import { ScoreWaterfallCollapsible } from "./results/ScoreWaterfallCollapsible";
 import { ResultsFooter } from "./results/ResultsFooter";
+import { FindingFilterBar } from "./results/FindingFilterBar";
+import { useFindingFilters } from "@/hooks/useFindingFilters";
 
 import type { ScoringResult, TxAnalysisResult } from "@/lib/types";
 import type { MempoolTransaction, MempoolAddress, MempoolUtxo } from "@/lib/api/types";
@@ -87,6 +89,7 @@ export const ResultsPanel = memo(function ResultsPanel({
   const { t } = useTranslation();
   const { devMode } = useDevMode();
   const { proMode } = useExperienceMode();
+  const filters = useFindingFilters();
   const isCoinJoin = result.findings.some(isCoinJoinFinding);
   const fingerprintFinding = result.findings.find((f) => f.id === "h11-wallet-fingerprint");
   const detectedWallet = fingerprintFinding?.params?.walletGuess as string | undefined;
@@ -127,11 +130,12 @@ export const ResultsPanel = memo(function ResultsPanel({
       && f.id !== "chain-trace-summary",
   );
 
-  // Split findings into severity tiers for progressive disclosure
-  const criticalFindings = visibleFindings.filter((f) => f.severity === "critical");
-  const highFindings = visibleFindings.filter((f) => f.severity === "high");
-  const details = visibleFindings.filter((f) => f.severity === "medium" || f.severity === "low");
-  const strengths = visibleFindings.filter((f) => f.severity === "good");
+  // Apply adversary/temporality filters (cypherpunk only), then split by severity
+  const filtered = proMode ? filters.apply(visibleFindings) : visibleFindings;
+  const criticalFindings = filtered.filter((f) => f.severity === "critical");
+  const highFindings = filtered.filter((f) => f.severity === "high");
+  const details = filtered.filter((f) => f.severity === "medium" || f.severity === "low");
+  const strengths = filtered.filter((f) => f.severity === "good");
 
   return (
     <motion.div
@@ -191,9 +195,12 @@ export const ResultsPanel = memo(function ResultsPanel({
         </motion.div>
       )}
 
+      {/* Finding filters (cypherpunk only) - above all finding sections */}
+      {proMode && <FindingFilterBar filters={filters} />}
+
       {/* Critical findings - immediately after the flow chart */}
       {criticalFindings.length > 0 && (
-        <FindingsSection issues={criticalFindings} visibleFindings={visibleFindings} onTxClick={onScan} delay={0.17} proMode={proMode} />
+        <FindingsSection issues={criticalFindings} onTxClick={onScan} delay={0.17} proMode={proMode} />
       )}
 
       {/* Transaction Graph (cypherpunk only, right after tx flow chart) */}
@@ -216,7 +223,7 @@ export const ResultsPanel = memo(function ResultsPanel({
 
       {/* Remaining findings (high severity + below, critical already shown above flow chart) */}
       {highFindings.length > 0 && (
-        <FindingsSection issues={highFindings} visibleFindings={visibleFindings} onTxClick={onScan} delay={0.2} proMode={proMode} />
+        <FindingsSection issues={highFindings} onTxClick={onScan} delay={0.2} proMode={proMode} />
       )}
 
       {/* Deep Analysis - Taint + Linkability (cypherpunk only, no GraphExplorer - moved above) */}

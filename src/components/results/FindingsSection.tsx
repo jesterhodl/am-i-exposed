@@ -26,13 +26,11 @@ function FindingSummary({ findings }: { findings: ScoringResult["findings"] }) {
 
 export function FindingsSection({
   issues,
-  visibleFindings,
   onTxClick,
   delay,
   proMode = false,
 }: {
   issues: ScoringResult["findings"];
-  visibleFindings: ScoringResult["findings"];
   onTxClick?: (input: string) => void;
   delay: number;
   proMode?: boolean;
@@ -45,9 +43,9 @@ export function FindingsSection({
     <motion.div {...fadeUpVariants} transition={fadeUpTransition(delay)} className="w-full space-y-4">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-base font-medium text-muted uppercase tracking-wider">
-          {t("results.findingsHeading", { count: visibleFindings.length, defaultValue: "Findings ({{count}})" })}
+          {t("results.findingsHeading", { count: issues.length, defaultValue: "Findings ({{count}})" })}
         </h2>
-        <FindingSummary findings={visibleFindings} />
+        <FindingSummary findings={issues} />
       </div>
       <div className="space-y-3">
         {issues.map((finding, i) => (
