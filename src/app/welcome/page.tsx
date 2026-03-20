@@ -52,7 +52,7 @@ export default function WelcomePage() {
             <p>
               <Trans
                 i18nKey="welcome.not_p2"
-                defaults="This is a static website. No server, no backend - HTML, JS, CSS, and WASM. Your addresses and transactions never leave your browser. The only network requests go to mempool.space for blockchain data - or to <guide>your own instance</guide> if you run a node."
+                defaults="This is a static website. No server, no backend - HTML, JS, CSS, and WASM. All analysis runs locally in your browser. Addresses and transactions are sent only to the mempool.space API for blockchain data - or to <guide>your own instance</guide> if you run a node. No results, scores, or findings are ever transmitted anywhere."
                 components={{ guide: <Link href="/setup-guide/" className="text-bitcoin hover:underline" /> }}
               />
             </p>

@@ -2043,7 +2043,7 @@
   "welcome.money_p3": "Todo el código es abierto. Licencia MIT. Haz un fork, audítalo, monta tu propia copia.",
   "welcome.not_heading": "Lo Que No Es",
   "welcome.not_p1": "Esto no es una empresa. Sin cuentas, sin recopilación de datos, sin cookies, sin analítica. No hay política de privacidad porque no hay nada sobre lo que escribir una.",
-  "welcome.not_p2": "Es un sitio web estático. Sin servidor, sin backend - HTML, JS, CSS y WASM. Tus direcciones y transacciones no salen del navegador en ningún momento. Las únicas peticiones de red van a mempool.space para obtener datos de la blockchain - o a <guide>tu propia instancia</guide> si tienes un nodo.",
+  "welcome.not_p2": "Es un sitio web estático. Sin servidor, sin backend - HTML, JS, CSS y WASM. Todo el análisis se ejecuta localmente en tu navegador. Las direcciones y transacciones solo se envían a la API de mempool.space para obtener datos de la blockchain - o a <guide>tu propia instancia</guide> si tienes un nodo. Los resultados, puntuaciones y hallazgos nunca se transmiten a ningún lugar.",
   "welcome.not_p3": "La recopilación de datos no se evita como política - es arquitectónicamente imposible. No hay servidor al que enviar datos. El código es auditable. La aplicación completa puede descargarse y ejecutarse sin conexión.",
   "welcome.problem_heading": "El Problema",
   "welcome.problem_p1": "Hay una idea extendida de que Bitcoin es privado por defecto. Que con comprar sin KYC ya es suficiente.",
