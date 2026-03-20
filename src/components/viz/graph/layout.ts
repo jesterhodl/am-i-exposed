@@ -139,10 +139,13 @@ export function layoutGraph(
 
   // Calculate cumulative x positions.
   // Reserve space to the left of depth 0 so backward expansions don't shift
-  // existing nodes. We pre-offset by the number of negative-depth columns
-  // that COULD exist (budget: 5 backward hops).
+  // existing nodes. In pan/zoom mode, reserve ~half viewport width so the root
+  // can be centered and backward expansions fill the left side naturally.
+  // As negative-depth columns are added, the reserved space shrinks to match.
+  const viewportHalf = typeof window !== "undefined" ? Math.round(window.innerWidth / 2) : 700;
+  const existingBackwardWidth = depths.filter((d) => d < 0).length * (NODE_W + COL_GAP);
   const backwardPadding = reserveBackwardSpace
-    ? Math.max(0, 5 - depths.filter((d) => d < 0).length) * (NODE_W + COL_GAP)
+    ? Math.max(0, viewportHalf - existingBackwardWidth)
     : 0;
 
   const colX = new Map<number, number>();
