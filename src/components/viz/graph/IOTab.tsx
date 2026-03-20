@@ -85,10 +85,14 @@ export function IOTab({
 
   const expandableOutputs = useMemo(() => {
     return tx.vout.reduce((acc, v, i) => {
-      if (v.scriptpubkey_type !== "op_return" && v.value > 0) acc.push(i);
+      if (v.scriptpubkey_type === "op_return" || v.value === 0) return acc;
+      // Skip unspent outputs (no spending tx to expand into)
+      const os = outspends?.[i];
+      if (os && os.spent === false) return acc;
+      acc.push(i);
       return acc;
     }, [] as number[]);
-  }, [tx]);
+  }, [tx, outspends]);
 
   const nonCoinbaseInputCount = tx.vin.filter((v) => !v.is_coinbase).length;
   const canComputeBoltzmann = !boltzmannResult && !computingBoltzmann && nonCoinbaseInputCount >= 2;
@@ -371,7 +375,7 @@ export function IOTab({
                     <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                   )}
                 </button>
-                {onExpandOutput && vout.scriptpubkey_type !== "op_return" && vout.value > 0 && (
+                {onExpandOutput && vout.scriptpubkey_type !== "op_return" && vout.value > 0 && os?.spent !== false && (
                   <button
                     onClick={() => onExpandOutput(tx.txid, i)}
                     className="opacity-0 group-hover:opacity-100 text-muted/60 hover:text-foreground transition-all cursor-pointer p-0.5"
@@ -381,7 +385,7 @@ export function IOTab({
                   </button>
                 )}
                 {/* Per-output auto-trace */}
-                {onAutoTrace && !autoTracing && vout.scriptpubkey_type !== "op_return" && vout.value > 0 && (
+                {onAutoTrace && !autoTracing && vout.scriptpubkey_type !== "op_return" && vout.value > 0 && os?.spent !== false && (
                   <button
                     onClick={() => onAutoTrace(tx.txid, i)}
                     className="opacity-0 group-hover:opacity-100 text-bitcoin/50 hover:text-bitcoin transition-all cursor-pointer p-0.5"
@@ -391,7 +395,7 @@ export function IOTab({
                   </button>
                 )}
                 {/* Per-output linkability trace */}
-                {onAutoTraceLinkability && !autoTracing && vout.scriptpubkey_type !== "op_return" && vout.value > 0 && (
+                {onAutoTraceLinkability && !autoTracing && vout.scriptpubkey_type !== "op_return" && vout.value > 0 && os?.spent !== false && (
                   <button
                     onClick={() => onAutoTraceLinkability(tx.txid, i)}
                     className="opacity-0 group-hover:opacity-100 text-severity-low/60 hover:text-severity-low transition-all cursor-pointer p-0.5"

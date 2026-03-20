@@ -921,24 +921,33 @@ export function GraphCanvas({
                 ) : null;
               })()}
 
-              {/* Expand right button (forward) */}
+              {/* Expand right button (forward) - hidden when all spent outputs are already shown */}
               {!atCapacity && (() => {
-                const consumedOutputs = new Set<number>();
+                const nonExpandable = new Set<number>();
+                // Already in graph (consumed by a child node)
                 for (const [, n] of nodes) {
                   for (const vin of n.tx.vin) {
                     if (vin.txid === node.txid && vin.vout !== undefined) {
-                      consumedOutputs.add(vin.vout);
+                      nonExpandable.add(vin.vout);
                     }
                   }
                 }
+                // OP_RETURN and zero-value outputs
                 for (let i = 0; i < node.tx.vout.length; i++) {
                   const out = node.tx.vout[i];
                   if (out.scriptpubkey_type === "op_return" || out.value === 0) {
-                    consumedOutputs.add(i);
+                    nonExpandable.add(i);
                   }
                 }
-                if (consumedOutputs.size >= node.tx.vout.length) return null;
-                const idx = node.tx.vout.findIndex((_, i) => !consumedOutputs.has(i));
+                // Unspent outputs (no spending tx exists)
+                const outspends = outspendCache?.get(node.txid);
+                if (outspends) {
+                  for (let i = 0; i < outspends.length; i++) {
+                    if (!outspends[i].spent) nonExpandable.add(i);
+                  }
+                }
+                if (nonExpandable.size >= node.tx.vout.length) return null;
+                const idx = node.tx.vout.findIndex((_, i) => !nonExpandable.has(i));
                 return idx >= 0 ? (
                   <g className="graph-btn" style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); onExpandOutput(node.txid, idx); }}>
                     <circle cx={node.x + node.width + 6} cy={node.y + node.height / 2} r={11} fill={SVG_COLORS.surfaceElevated} stroke={color} strokeWidth={1.5} />
