@@ -96,16 +96,7 @@ export default function GraphPage() {
     return () => window.removeEventListener("hashchange", loadFromHash);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = useCallback(
-    (txid: string) => {
-      const example = TX_EXAMPLES.find((e) => e.input.toLowerCase() === txid.toLowerCase());
-      window.location.hash = `txid=${txid}`;
-      loadTxid(txid, example?.labelDefault);
-    },
-    [loadTxid],
-  );
-
-  const handleSetAsRoot = useCallback(
+  const navigateToTxid = useCallback(
     (txid: string) => {
       const example = TX_EXAMPLES.find((e) => e.input.toLowerCase() === txid.toLowerCase());
       window.location.hash = `txid=${txid}`;
@@ -122,7 +113,7 @@ export default function GraphPage() {
   return (
     <div className="relative w-full" style={{ height: "calc(100vh - 80px)" }}>
       <GraphSearchBar
-        onSubmit={handleSearch}
+        onSubmit={navigateToTxid}
         loading={searchLoading}
         error={searchError}
         currentTxid={rootTxid || null}
@@ -158,7 +149,7 @@ export default function GraphPage() {
                 autoTraceLinkability(txid, outputIndex, { boltzmannCache: undefined })
               }
               alwaysFullscreen
-              onSetAsRoot={handleSetAsRoot}
+              onSetAsRoot={navigateToTxid}
             />
           </Suspense>
         </ChartErrorBoundary>

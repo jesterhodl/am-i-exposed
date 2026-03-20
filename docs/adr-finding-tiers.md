@@ -154,7 +154,7 @@ Dynamic finding IDs (e.g., `h7-op-return-0`, `h7-op-return-1`) fall back to pref
 | `h8-no-reuse`, `h8-reuse-uncertain`, `h8-batch-receive` | passive | ongoing_pattern | Informational |
 | `h9-dust-detected` | passive, state | active_risk | Unspent dust UTXOs, actionable now |
 | `h9-many-utxos`, `h9-moderate-utxos` | passive, state | active_risk | UTXO set fragmentation risk |
-| `h9-clean` | passive | active_risk | Positive finding |
+| `h9-clean` | passive | ongoing_pattern | Positive finding (clean set) |
 | `h10-p2tr`, `h10-p2wpkh`, `h10-p2wsh`, `h10-p2sh`, `h10-p2pkh` | passive | ongoing_pattern | Address type migration possible |
 | `spending-high-volume` | kyc, state | ongoing_pattern | High volume behavioral pattern |
 | `spending-many-counterparties` | passive, kyc | ongoing_pattern | Counterparty diversity pattern |
@@ -245,7 +245,7 @@ Complex compound rules (RBF x Change, post-mix entity escalation, wallet paradox
 
 ## Anti-Regression Rules
 
-1. **Pro mode only.** Adversary and temporality badges render only in pro mode. Default view stays clean.
+1. **Badges in both modes.** Adversary and temporality badges and the expanded TierContext render in both Normie and Cypherpunk modes - this information is useful for all users. Only the filter bar is Cypherpunk-only.
 2. **Score invariant.** Filters never change the displayed score. Visual-only filtering.
 3. **Unclassified passthrough.** Findings without metadata are always shown (no silent hiding).
 4. **Registry is exhaustive.** Every finding ID produced by the engine must have a registry entry. A completeness test enforces this.

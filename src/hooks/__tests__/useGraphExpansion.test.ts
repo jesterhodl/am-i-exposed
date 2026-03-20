@@ -283,6 +283,62 @@ describe("useGraphExpansion", () => {
     });
   });
 
+  // ── Undo ──────────────────────────────────────────────────────────────
+
+  describe("undo", () => {
+    it("removes the last expanded node", async () => {
+      const parentTx = makeTx({ txid: "parent-undo" });
+      const rootTx = makeTx({
+        txid: "root-undo",
+        vin: [makeVin("parent-undo", 0)],
+      });
+
+      const fetcher = {
+        getTransaction: vi.fn().mockResolvedValue(parentTx),
+        getTxOutspends: vi.fn().mockResolvedValue([]),
+      };
+
+      const { result } = renderHook(() => useGraphExpansion(fetcher));
+
+      act(() => {
+        result.current.setRoot(rootTx);
+      });
+      expect(result.current.canUndo).toBe(false);
+
+      await act(async () => {
+        await result.current.expandInput("root-undo", 0);
+      });
+      expect(result.current.nodes.size).toBe(2);
+      expect(result.current.canUndo).toBe(true);
+
+      act(() => {
+        result.current.undo();
+      });
+
+      expect(result.current.nodes.size).toBe(1);
+      expect(result.current.nodes.has("parent-undo")).toBe(false);
+      expect(result.current.nodes.has("root-undo")).toBe(true);
+      expect(result.current.canUndo).toBe(false);
+    });
+
+    it("undo is a no-op when history is empty", () => {
+      const rootTx = makeTx({ txid: "root-noop" });
+      const { result } = renderHook(() => useGraphExpansion(null));
+
+      act(() => {
+        result.current.setRoot(rootTx);
+      });
+
+      act(() => {
+        result.current.undo();
+      });
+
+      expect(result.current.nodes.size).toBe(1);
+      expect(result.current.rootTxid).toBe("root-noop");
+      expect(result.current.canUndo).toBe(false);
+    });
+  });
+
   // ── Reset ─────────────────────────────────────────────────────────────
 
   describe("reset", () => {
