@@ -5,16 +5,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, FileText, Info, Shield } from "lucide-react";
+import { Menu, X, FileText, Info, Shield, Network } from "lucide-react";
 import { ConnectionBadge } from "./ConnectionBadge";
 import { ApiSettings } from "./ApiSettings";
 import { ExperienceModeToggle } from "./ExperienceModeToggle";
 import { useDevMode } from "@/hooks/useDevMode";
+import { useExperienceMode } from "@/hooks/useExperienceMode";
 
 /** Knowledge section paths grouped under the Guide nav item. */
 const KNOWLEDGE_PATHS = new Set(["/guide", "/faq", "/glossary"]);
 
 const NAV_ITEMS = [
+  { href: "/graph/", labelKey: "common.graphExplorer", labelDefault: "Graph", icon: Network, proOnly: true },
   { href: "/guide/", labelKey: "common.guide", labelDefault: "Guide", icon: Shield },
   { href: "/methodology/", labelKey: "common.methodology", labelDefault: "Methodology", icon: FileText },
   { href: "/about/", labelKey: "common.about", labelDefault: "About", icon: Info },
@@ -23,6 +25,7 @@ const NAV_ITEMS = [
 export function Header() {
   const { t } = useTranslation();
   const currentPath = usePathname();
+  const { proMode } = useExperienceMode();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { devMode, toggleDevMode } = useDevMode();
   const mobileToggleRef = useRef<HTMLButtonElement>(null);
@@ -107,7 +110,7 @@ export function Header() {
 
             {/* Desktop nav */}
             <nav className="hidden sm:flex items-center gap-0.5 ml-4 relative" aria-label="Main navigation">
-              {NAV_ITEMS.map((item) => {
+              {NAV_ITEMS.filter((item) => !item.proOnly || proMode).map((item) => {
                 const active = isActive(item.href);
                 return (
                   <Link
@@ -185,7 +188,7 @@ export function Header() {
               }}
               aria-label="Mobile navigation"
             >
-              {NAV_ITEMS.map((item) => {
+              {NAV_ITEMS.filter((item) => !item.proOnly || proMode).map((item) => {
                 const active = isActive(item.href);
                 const Icon = item.icon;
                 return (

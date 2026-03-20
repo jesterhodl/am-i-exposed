@@ -36,6 +36,8 @@ interface GraphSidebarProps {
   /** Collapse sidebar (hide it, but keep the node expanded). */
   onCollapse?: () => void;
   onFullScan: (txid: string) => void;
+  /** Change graph root to this transaction (standalone graph page). */
+  onSetAsRoot?: (txid: string) => void;
   onExpandInput?: (txid: string, inputIndex: number) => void;
   onExpandOutput?: (txid: string, outputIndex: number) => void;
   /** Set of change-marked outputs: "${txid}:${outputIndex}". */
@@ -79,6 +81,7 @@ export function GraphSidebar({
   onAutoTraceLinkability,
   autoTracing,
   autoTraceProgress,
+  onSetAsRoot,
 }: GraphSidebarProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("io");
@@ -190,14 +193,22 @@ export function GraphSidebar({
         )}
       </div>
 
-      {/* Full scan button */}
-      <div className="px-3 py-2 border-t border-card-border shrink-0">
+      {/* Action buttons */}
+      <div className="px-3 py-2 border-t border-card-border shrink-0 flex gap-2">
         <button
           onClick={() => onFullScan(tx.txid)}
-          className="w-full text-xs text-center py-2 rounded-lg border border-card-border text-muted hover:text-foreground hover:border-muted transition-colors cursor-pointer"
+          className="flex-1 text-xs text-center py-2 rounded-lg border border-card-border text-muted hover:text-foreground hover:border-muted transition-colors cursor-pointer"
         >
           {t("graphExplorer.analysis.fullScan", { defaultValue: "Full Scan" })}
         </button>
+        {onSetAsRoot && (
+          <button
+            onClick={() => onSetAsRoot(tx.txid)}
+            className="flex-1 text-xs text-center py-2 rounded-lg border border-card-border text-muted hover:text-foreground hover:border-muted transition-colors cursor-pointer"
+          >
+            {t("graphPage.setAsRoot", { defaultValue: "Set as root" })}
+          </button>
+        )}
       </div>
     </motion.div>
   );

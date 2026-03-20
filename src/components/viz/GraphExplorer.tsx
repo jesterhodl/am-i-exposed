@@ -243,17 +243,6 @@ export function GraphExplorer(props: GraphExplorerProps) {
     setViewTransform(computeFitTransform(gw, gh, cw, ch));
   }, [props.nodes, props.rootTxid, filter, props.rootTxids]);
 
-  // Time travel replay
-  const [timeTravelPlaying, setTimeTravelPlaying] = useState(false);
-  const timeTravelIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Clean up time travel interval on unmount
-  useEffect(() => {
-    return () => {
-      if (timeTravelIntervalRef.current) clearInterval(timeTravelIntervalRef.current);
-    };
-  }, []);
-
   // ─── Global keyboard shortcuts for graph modes ───────
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -286,7 +275,6 @@ export function GraphExplorer(props: GraphExplorerProps) {
     nodeCount: props.nodeCount,
     maxNodes: props.maxNodes,
     hiddenCount,
-    canUndo: props.canUndo,
     heatMapActive,
     heatProgress,
     fingerprintMode,
@@ -294,7 +282,6 @@ export function GraphExplorer(props: GraphExplorerProps) {
     onToggleHeatMap: handleToggleHeatMap,
     onToggleFingerprint: handleToggleFingerprint,
     onCycleEdgeMode: cycleEdgeMode,
-    onUndo: props.onUndo,
     onReset: props.onReset,
   };
 
@@ -376,6 +363,7 @@ export function GraphExplorer(props: GraphExplorerProps) {
           onAutoTraceLinkability={props.onAutoTraceLinkability}
           autoTracing={props.autoTracing}
           autoTraceProgress={props.autoTraceProgress}
+          onSetAsRoot={props.onSetAsRoot}
         />
       </AnimatePresence>
     );
@@ -436,6 +424,49 @@ export function GraphExplorer(props: GraphExplorerProps) {
 
   // ─── Render ────────────────────────────────────────────
 
+  // Standalone fullscreen mode (e.g. /graph page) - no modal, no inline card
+  if (props.alwaysFullscreen) {
+    return (
+      <div className="flex flex-col h-full bg-card-bg">
+        <div className="p-4 pr-14 space-y-2 shrink-0">
+          <GraphToolbar
+            {...toolbarProps}
+            onZoomIn={() => zoomBy(1.25)}
+            onZoomOut={() => zoomBy(1 / 1.25)}
+            onFitView={handleFitView}
+          />
+        </div>
+        <div className="flex-1 min-h-0 relative px-4 pb-4 flex" style={{ touchAction: "none" }}>
+          <div className="flex-1 min-w-0 relative">
+            {legend}
+            <div ref={scrollRef} className="overflow-hidden h-full" style={{ touchAction: "none" }}>
+              <ParentSize debounceTime={100}>
+                {({ width, height: parentH }) => {
+                  const adjustedWidth = showSidebar ? Math.max(width - SIDEBAR_WIDTH, 200) : width;
+                  return adjustedWidth > 0 ? (
+                    <GraphCanvas
+                      {...fullscreenCanvasProps}
+                      containerWidth={adjustedWidth}
+                      containerHeight={parentH}
+                      isFullscreen
+                    />
+                  ) : null;
+                }}
+              </ParentSize>
+            </div>
+            {tooltipContent}
+          </div>
+          {renderSidebar("af-")}
+        </div>
+        {props.errors.size > 0 && props.loading.size === 0 && (
+          <div className="text-xs text-severity-medium/80 px-4 pb-2">
+            {[...props.errors.values()].at(-1)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       <motion.div
@@ -466,56 +497,6 @@ export function GraphExplorer(props: GraphExplorerProps) {
             </div>
             {/* Sidebar: expanded or collapsed tab */}
             {renderSidebar("")}
-          </div>
-        )}
-
-        {/* Time travel slider */}
-        {(props.undoStackLength ?? 0) > 1 && (
-          <div className="flex items-center gap-2 px-1">
-            <button
-              onClick={() => {
-                if (!timeTravelPlaying) {
-                  setTimeTravelPlaying(true);
-                  // Auto-play forward through snapshots
-                  let step = 0;
-                  const iv = setInterval(() => {
-                    step++;
-                    if (step >= (props.undoStackLength ?? 0)) {
-                      clearInterval(iv);
-                      setTimeTravelPlaying(false);
-                      return;
-                    }
-                    props.onGotoSnapshot?.(step);
-                  }, 400);
-                  timeTravelIntervalRef.current = iv;
-                  props.onGotoSnapshot?.(0);
-                } else {
-                  if (timeTravelIntervalRef.current) clearInterval(timeTravelIntervalRef.current);
-                  setTimeTravelPlaying(false);
-                }
-              }}
-              className="text-muted hover:text-foreground/70 transition-colors cursor-pointer shrink-0"
-              title={timeTravelPlaying ? "Pause" : "Replay expansion"}
-            >
-              {timeTravelPlaying ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
-              )}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={(props.undoStackLength ?? 1) - 1}
-              value={props.undoStackLength ?? 0}
-              onChange={(e) => {
-                const idx = parseInt(e.target.value, 10);
-                props.onGotoSnapshot?.(idx);
-              }}
-              className="flex-1 h-1 appearance-none bg-foreground/10 rounded-full cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground/50"
-              title="Scrub through expansion history"
-            />
-            <span className="text-[10px] text-muted/70 tabular-nums shrink-0">{props.undoStackLength} steps</span>
           </div>
         )}
 

@@ -20,11 +20,9 @@ export interface GraphExplorerProps {
   errors: Map<string, string>;
   nodeCount: number;
   maxNodes: number;
-  canUndo: boolean;
   onExpandInput: (txid: string, inputIndex: number) => void;
   onExpandOutput: (txid: string, outputIndex: number) => void;
   onCollapse: (txid: string) => void;
-  onUndo: () => void;
   onReset: () => void;
   onTxClick?: (txid: string) => void;
   /** Boltzmann result for the root transaction (linkability edge coloring). */
@@ -49,10 +47,10 @@ export interface GraphExplorerProps {
   autoTraceProgress?: { hop: number; txid: string; reason: string } | null;
   /** Trigger compounding linkability trace from a specific output. */
   onAutoTraceLinkability?: (txid: string, outputIndex: number) => void;
-  /** Number of snapshots in the undo stack (for time travel slider). */
-  undoStackLength?: number;
-  /** Jump to a specific snapshot in the undo stack. */
-  onGotoSnapshot?: (index: number) => void;
+  /** When true, render fullscreen layout directly without the modal wrapper. */
+  alwaysFullscreen?: boolean;
+  /** Callback to change the graph root to a different transaction. */
+  onSetAsRoot?: (txid: string) => void;
 }
 
 export interface LayoutNode {
