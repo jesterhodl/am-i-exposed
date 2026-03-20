@@ -51,7 +51,10 @@ export function GraphExplorer(props: GraphExplorerProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // View transform for fullscreen pan/zoom
-  const [viewTransform, setViewTransform] = useState<ViewTransform | undefined>(undefined);
+  // alwaysFullscreen starts with an initial transform so pan/zoom works immediately
+  const [viewTransform, setViewTransform] = useState<ViewTransform | undefined>(
+    props.alwaysFullscreen ? { x: 0, y: 0, scale: 1 } : undefined,
+  );
 
   // Fullscreen toggle (onExit clears selection + view transform)
   const handleFullscreenExit = useCallback(() => {
