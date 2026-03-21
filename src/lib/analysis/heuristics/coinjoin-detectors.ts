@@ -1,4 +1,5 @@
 import { WHIRLPOOL_DENOMS } from "@/lib/constants";
+import { countOutputValues } from "./tx-utils";
 
 /** Minimum denomination for CoinJoin equal outputs (below this, likely noise/dust). */
 const MIN_COINJOIN_DENOM = 10_000;
@@ -87,10 +88,7 @@ export function detectJoinMarket(
   if (inputAddresses.size < 2) return null;
 
   // Count output values - look for 2-4 equal-valued outputs
-  const counts = new Map<number, number>();
-  for (const o of spendableOutputs) {
-    counts.set(o.value, (counts.get(o.value) ?? 0) + 1);
-  }
+  const counts = countOutputValues(spendableOutputs);
 
   // Find equal output groups with 2-4 occurrences
   let bestValue = 0;
@@ -156,10 +154,7 @@ export function detectStonewall(
   const isWhirlpoolOrigin = allSameValue && inputValues.length >= 5 && WHIRLPOOL_DENOMS.includes(inputValues[0]);
 
   // Count output values
-  const counts = new Map<number, number>();
-  for (const o of spendableOutputs) {
-    counts.set(o.value, (counts.get(o.value) ?? 0) + 1);
-  }
+  const counts = countOutputValues(spendableOutputs);
 
   // Need exactly 1 pair of equal outputs + 2 distinct change outputs
   // counts.size === 3 means: one value twice, two other values once each
@@ -216,10 +211,7 @@ export function detectSimplifiedStonewall(
   if (vin.length < 2) return null;
 
   // Count output values - need exactly 1 pair
-  const counts = new Map<number, number>();
-  for (const o of spendableOutputs) {
-    counts.set(o.value, (counts.get(o.value) ?? 0) + 1);
-  }
+  const counts = countOutputValues(spendableOutputs);
 
   // counts.size === 2 means: one value twice + one value once
   if (counts.size !== 2) return null;

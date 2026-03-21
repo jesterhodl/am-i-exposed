@@ -5,7 +5,7 @@ export function sumImpact(findings: Finding[]): number {
   return findings.reduce((sum, f) => sum + f.scoreImpact, 0);
 }
 
-/** Base score for transaction analysis (24 heuristics, impacts up to +30). */
+/** Base score for transaction analysis (27 heuristics, impacts up to +30). */
 export const TX_BASE_SCORE = 70;
 /** Base score for address analysis (6 heuristics, max positive +7). */
 export const ADDRESS_BASE_SCORE = 93;

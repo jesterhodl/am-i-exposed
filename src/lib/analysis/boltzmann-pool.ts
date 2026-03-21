@@ -1,7 +1,21 @@
 /**
- * Boltzmann WASM worker pool singleton and helper functions.
- * Shared between the imperative computeBoltzmann() and the useBoltzmann hook.
+ * Boltzmann WASM worker pool singleton and parallel execution.
+ *
+ * Pure detection helpers (intrafees, JoinMarket, WabiSabi, extractTxValues,
+ * isAutoComputable) live in ./boltzmann-detection.ts and are re-exported
+ * here for backward compatibility.
  */
+
+// Re-export detection helpers so existing imports keep working
+export {
+  MAX_SUPPORTED_TOTAL,
+  MAX_SUPPORTED_TOTAL_WABISABI,
+  detectIntrafees,
+  detectJoinMarketForTurbo,
+  detectWabiSabiForTurbo,
+  isAutoComputable,
+  extractTxValues,
+} from "./boltzmann-detection";
 
 export type BoltzmannMethod = "exact" | "joinmarket" | "wabisabi";
 
@@ -53,15 +67,6 @@ interface WorkerProgress {
 
 export type WorkerResponse = (BoltzmannWorkerResult & { workerIndex?: number }) | WorkerError | WorkerProgress;
 
-/** Auto-compute when total UTXOs (inputs + outputs) is under this threshold. */
-const AUTO_COMPUTE_MAX_TOTAL = 20;
-
-/** Maximum supported total UTXOs (inputs + outputs). */
-export const MAX_SUPPORTED_TOTAL = 80;
-
-/** Maximum supported total for WabiSabi (tier-decomposed, no DFS). */
-export const MAX_SUPPORTED_TOTAL_WABISABI = 800;
-
 /** Maximum number of parallel workers. */
 export const MAX_WORKERS = 8;
 
@@ -92,99 +97,6 @@ export function getWorkerPool(size: number): Worker[] {
 export function terminatePool() {
   for (const w of workerPool) w.terminate();
   workerPool = [];
-}
-
-/** Detect intrafees for CoinJoin pattern. */
-export function detectIntrafees(
-  outputValues: number[],
-  maxRatio: number,
-): { feesMaker: number; feesTaker: number; hasCjPattern: boolean } {
-  const valueCounts = new Map<number, number>();
-  for (const v of outputValues) {
-    valueCounts.set(v, (valueCounts.get(v) ?? 0) + 1);
-  }
-  let bestAmount = 0;
-  let bestCount = 0;
-  for (const [val, count] of valueCounts) {
-    if (count >= 2 && (count > bestCount || (count === bestCount && val > bestAmount))) {
-      bestAmount = val;
-      bestCount = count;
-    }
-  }
-
-  if (bestCount < 2 || outputValues.length > 2 * bestCount) {
-    return { feesMaker: 0, feesTaker: 0, hasCjPattern: false };
-  }
-
-  const feesMaker = Math.round(bestAmount * maxRatio);
-  const feesTaker = feesMaker * (bestCount - 1);
-  return { feesMaker, feesTaker, hasCjPattern: true };
-}
-
-/** Detect JoinMarket CoinJoin structure for turbo Boltzmann mode. */
-export function detectJoinMarketForTurbo(
-  inputValues: number[],
-  outputValues: number[],
-): { isJoinMarket: boolean; denomination: number } {
-  const valueCounts = new Map<number, number>();
-  for (const v of outputValues) {
-    valueCounts.set(v, (valueCounts.get(v) ?? 0) + 1);
-  }
-
-  let bestAmount = 0;
-  let bestCount = 0;
-  for (const [val, count] of valueCounts) {
-    if (count >= 2 && (count > bestCount || (count === bestCount && val > bestAmount))) {
-      bestAmount = val;
-      bestCount = count;
-    }
-  }
-
-  if (bestCount < 2) return { isJoinMarket: false, denomination: 0 };
-
-  const equalCount = bestCount;
-  const denomination = bestAmount;
-
-  // JoinMarket requires at least 3 equal outputs (2 makers + 1 taker minimum).
-  // This eliminates Stonewall (always 2 equal), batch payments with coincidental
-  // pairs, and other false positives. A 1-maker JM round is useless for privacy.
-  if (equalCount < 3) return { isJoinMarket: false, denomination: 0 };
-
-  // Each maker must fund the denomination from a single input, so at least
-  // (equalCount - 1) inputs must be >= denomination. The -1 accounts for the
-  // taker, whose individual inputs may be smaller (consolidation).
-  const aboveDenom = inputValues.filter(v => v >= denomination).length;
-  if (aboveDenom < equalCount - 1) return { isJoinMarket: false, denomination: 0 };
-
-  if (outputValues.length > 2 * equalCount + 5) return { isJoinMarket: false, denomination: 0 };
-
-  const changeCount = outputValues.length - equalCount;
-  if (changeCount === 0) return { isJoinMarket: false, denomination: 0 };
-
-  return { isJoinMarket: true, denomination };
-}
-
-/** Detect WabiSabi CoinJoin structure for turbo Boltzmann mode.
- *
- * WabiSabi has 3+ denomination tiers with 10+ total equal outputs.
- * Unlike JoinMarket (single denomination), WabiSabi uses the tier-decomposed
- * Boltzmann approach: per-tier partition formulas combined under independence.
- */
-export function detectWabiSabiForTurbo(
-  inputValues: number[],
-  outputValues: number[],
-): boolean {
-  if (inputValues.length < 10 || outputValues.length < 10) return false;
-
-  const counts = new Map<number, number>();
-  for (const v of outputValues) {
-    if (v > 0) counts.set(v, (counts.get(v) ?? 0) + 1);
-  }
-
-  const tiers = [...counts.entries()].filter(([, c]) => c >= 2);
-  const totalEqual = tiers.reduce((sum, [, c]) => sum + c, 0);
-
-  return totalEqual >= 10 && tiers.length >= 3;
 }
 
 /**
@@ -353,33 +265,4 @@ export function runParallelPass(
       });
     }
   });
-}
-
-/** Check if a transaction is eligible for auto Boltzmann computation. */
-export function isAutoComputable(
-  inputValues: number[],
-  outputValues: number[],
-): boolean {
-  const nIn = inputValues.length;
-  const nOut = outputValues.length;
-  if (nIn === 0 || nOut === 0) return false;
-  if (nIn + nOut < AUTO_COMPUTE_MAX_TOTAL) return true;
-  // WabiSabi turbo: tier-decomposed, handles up to 800 total I/O
-  if (nIn + nOut <= MAX_SUPPORTED_TOTAL_WABISABI && detectWabiSabiForTurbo(inputValues, outputValues)) return true;
-  if (nIn + nOut > MAX_SUPPORTED_TOTAL) return false;
-  return detectJoinMarketForTurbo(inputValues, outputValues).isJoinMarket;
-}
-
-/** Extract input/output values from a transaction (filtering coinbase/OP_RETURN). */
-export function extractTxValues(tx: { vin: Array<{ is_coinbase?: boolean; prevout?: { value: number } | null }>; vout: Array<{ scriptpubkey_type?: string; value: number }> }): {
-  inputValues: number[];
-  outputValues: number[];
-} {
-  const inputValues = tx.vin
-    .filter(v => !v.is_coinbase && v.prevout)
-    .map(v => v.prevout!.value);
-  const outputValues = tx.vout
-    .filter(o => o.scriptpubkey_type !== "op_return" && o.value > 0)
-    .map(o => o.value);
-  return { inputValues, outputValues };
 }

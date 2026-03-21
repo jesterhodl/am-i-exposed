@@ -56,13 +56,6 @@ export interface SavedGraph {
   edgeLabels?: Record<string, string>;
 }
 
-/** JSON envelope for import/export. */
-export interface SavedGraphExport {
-  version: 1;
-  exportedAt: number;
-  graphs: SavedGraph[];
-}
-
 // ─── Serialization ──────────────────────────────────────────────────
 
 const TXID_HEX = /^[a-fA-F0-9]{64}$/;
@@ -142,9 +135,4 @@ export function validateSavedGraph(obj: unknown): obj is SavedGraph {
   }
 
   return true;
-}
-
-/** Extract the set of unique txids from a saved graph. */
-export function getSavedGraphTxids(saved: SavedGraph): string[] {
-  return saved.nodes.map((n) => n.txid);
 }

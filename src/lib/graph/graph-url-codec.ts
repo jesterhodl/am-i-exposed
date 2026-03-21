@@ -34,12 +34,15 @@ import type { SavedGraph, SavedGraphNode, GraphAnnotation } from "./saved-graph-
 const MAX_URL_LENGTH = 6000;
 const NETWORK_MAP: BitcoinNetwork[] = ["mainnet", "testnet4", "signet"];
 const MAX_TITLE_BYTES = 60; // 20 chars * 3 bytes max for UTF-8
+const TXID_BYTES = 32;
+const NODE_RECORD_SIZE = 37; // 32 txid + 1 depth + 1 flags + 2 edgeRef + 1 edgeIndex
+const NO_EDGE = 0xFFFF;
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
 function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(32);
-  for (let i = 0; i < 32; i++) {
+  const bytes = new Uint8Array(TXID_BYTES);
+  for (let i = 0; i < TXID_BYTES; i++) {
     bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   }
   return bytes;
@@ -47,7 +50,7 @@ function hexToBytes(hex: string): Uint8Array {
 
 function bytesToHex(bytes: Uint8Array, offset: number): string {
   let hex = "";
-  for (let i = 0; i < 32; i++) {
+  for (let i = 0; i < TXID_BYTES; i++) {
     hex += bytes[offset + i].toString(16).padStart(2, "0");
   }
   return hex;
@@ -80,6 +83,22 @@ function decodeUtf8(bytes: Uint8Array, offset: number, length: number): string {
 }
 
 const ANNOTATION_TYPE_MAP: GraphAnnotation["type"][] = ["note", "rect", "circle"];
+
+/** Write a capped UTF-8 label (uint8 length + bytes) into buf at offset. Returns new offset. */
+function writeLabelBytes(buf: Uint8Array, offset: number, bytes: Uint8Array): number {
+  const len = Math.min(bytes.length, MAX_TITLE_BYTES);
+  buf[offset++] = len;
+  buf.set(bytes.slice(0, MAX_TITLE_BYTES), offset);
+  return offset + len;
+}
+
+/** Read a uint8-length-prefixed UTF-8 label from buf at offset. Returns [text, newOffset]. */
+function readLabelBytes(buf: Uint8Array, offset: number): [string, number] {
+  const len = buf[offset++];
+  if (offset + len > buf.length) return ["", offset];
+  const text = decodeUtf8(buf, offset, len);
+  return [text, offset + len];
+}
 
 // ─── Encode ─────────────────────────────────────────────────────────
 
@@ -155,7 +174,7 @@ export function encodeGraphToUrl(saved: SavedGraph): string | null {
   const headerSize = 5;
   const multiRootSize = 2 + multiRoots.length * 2;
   const networkSize = 1;
-  const nodeTableSize = nodeCount * 37;
+  const nodeTableSize = nodeCount * NODE_RECORD_SIZE;
   const posSize = 2 + posEntries.length * 10;
   const nodeLabelSize = 2 + nodeLabelEntries.reduce((s, e) => s + 2 + 1 + e.bytes.length, 0);
   const annotSize = 2 + annotEntries.reduce((s, e) => s + 1 + 16 + 1 + e.titleBytes.length, 0);
@@ -183,7 +202,7 @@ export function encodeGraphToUrl(saved: SavedGraph): string | null {
   // Node table
   for (const node of nodes) {
     const txidBytes = hexToBytes(node.txid);
-    buf.set(txidBytes, offset); offset += 32;
+    buf.set(txidBytes, offset); offset += TXID_BYTES;
     view.setInt8(offset, node.depth); offset += 1;
 
     let flags = 0;
@@ -192,15 +211,15 @@ export function encodeGraphToUrl(saved: SavedGraph): string | null {
     buf[offset++] = flags;
 
     if (node.parentEdge) {
-      const refIdx = txidToIdx.get(node.parentEdge.fromTxid) ?? 0xFFFF;
+      const refIdx = txidToIdx.get(node.parentEdge.fromTxid) ?? NO_EDGE;
       view.setUint16(offset, refIdx); offset += 2;
       buf[offset++] = node.parentEdge.outputIndex & 0xFF;
     } else if (node.childEdge) {
-      const refIdx = txidToIdx.get(node.childEdge.toTxid) ?? 0xFFFF;
+      const refIdx = txidToIdx.get(node.childEdge.toTxid) ?? NO_EDGE;
       view.setUint16(offset, refIdx); offset += 2;
       buf[offset++] = node.childEdge.inputIndex & 0xFF;
     } else {
-      view.setUint16(offset, 0xFFFF); offset += 2;
+      view.setUint16(offset, NO_EDGE); offset += 2;
       buf[offset++] = 0;
     }
   }
@@ -219,9 +238,7 @@ export function encodeGraphToUrl(saved: SavedGraph): string | null {
   view.setUint16(offset, nodeLabelEntries.length); offset += 2;
   for (const e of nodeLabelEntries) {
     view.setUint16(offset, e.idx); offset += 2;
-    buf[offset++] = Math.min(e.bytes.length, MAX_TITLE_BYTES);
-    buf.set(e.bytes.slice(0, MAX_TITLE_BYTES), offset);
-    offset += Math.min(e.bytes.length, MAX_TITLE_BYTES);
+    offset = writeLabelBytes(buf, offset, e.bytes);
   }
 
   // Annotations (titles only)
@@ -232,9 +249,7 @@ export function encodeGraphToUrl(saved: SavedGraph): string | null {
     view.setFloat32(offset, e.y); offset += 4;
     view.setFloat32(offset, e.w); offset += 4;
     view.setFloat32(offset, e.h); offset += 4;
-    buf[offset++] = Math.min(e.titleBytes.length, MAX_TITLE_BYTES);
-    buf.set(e.titleBytes.slice(0, MAX_TITLE_BYTES), offset);
-    offset += Math.min(e.titleBytes.length, MAX_TITLE_BYTES);
+    offset = writeLabelBytes(buf, offset, e.titleBytes);
   }
 
   // Edge labels (fromIdx:uint16, toIdx:uint16, len:uint8, utf8[len])
@@ -242,9 +257,7 @@ export function encodeGraphToUrl(saved: SavedGraph): string | null {
   for (const e of edgeLabelEntries) {
     view.setUint16(offset, e.fromIdx); offset += 2;
     view.setUint16(offset, e.toIdx); offset += 2;
-    buf[offset++] = Math.min(e.bytes.length, MAX_TITLE_BYTES);
-    buf.set(e.bytes.slice(0, MAX_TITLE_BYTES), offset);
-    offset += Math.min(e.bytes.length, MAX_TITLE_BYTES);
+    offset = writeLabelBytes(buf, offset, e.bytes);
   }
 
   const encoded = toBase64Url(buf.slice(0, offset));
@@ -284,24 +297,24 @@ export function decodeGraphFromUrl(
     const nodeStartOffset = offset;
     for (let i = 0; i < nodeCount; i++) {
       txids.push(bytesToHex(buf, offset));
-      offset += 37;
+      offset += NODE_RECORD_SIZE;
     }
 
     offset = nodeStartOffset;
     const nodes: SavedGraphNode[] = [];
     for (let i = 0; i < nodeCount; i++) {
       const txid = txids[i];
-      offset += 32;
+      offset += TXID_BYTES;
       const depth = view.getInt8(offset); offset += 1;
       const flags = buf[offset++];
       const edgeRefIdx = view.getUint16(offset); offset += 2;
       const edgeIndex = buf[offset++];
 
       const node: SavedGraphNode = { txid, depth };
-      if ((flags & 1) && edgeRefIdx !== 0xFFFF && edgeRefIdx < nodeCount) {
+      if ((flags & 1) && edgeRefIdx !== NO_EDGE && edgeRefIdx < nodeCount) {
         node.parentEdge = { fromTxid: txids[edgeRefIdx], outputIndex: edgeIndex };
       }
-      if ((flags & 2) && edgeRefIdx !== 0xFFFF && edgeRefIdx < nodeCount) {
+      if ((flags & 2) && edgeRefIdx !== NO_EDGE && edgeRefIdx < nodeCount) {
         node.childEdge = { toTxid: txids[edgeRefIdx], inputIndex: edgeIndex };
       }
       nodes.push(node);
@@ -339,12 +352,9 @@ export function decodeGraphFromUrl(
           nodeLabels = {};
           for (let i = 0; i < labelCount && offset + 3 <= buf.length; i++) {
             const idx = view.getUint16(offset); offset += 2;
-            const len = buf[offset++];
-            if (offset + len <= buf.length) {
-              const text = decodeUtf8(buf, offset, len);
-              offset += len;
-              if (idx < nodeCount) nodeLabels[txids[idx]] = text;
-            }
+            const [text, nextOff] = readLabelBytes(buf, offset);
+            offset = nextOff;
+            if (idx < nodeCount) nodeLabels[txids[idx]] = text;
           }
         }
       }
@@ -360,12 +370,8 @@ export function decodeGraphFromUrl(
             const y = view.getFloat32(offset); offset += 4;
             const w = view.getFloat32(offset); offset += 4;
             const h = view.getFloat32(offset); offset += 4;
-            const titleLen = buf[offset++];
-            let title = "";
-            if (offset + titleLen <= buf.length) {
-              title = decodeUtf8(buf, offset, titleLen);
-              offset += titleLen;
-            }
+            const [title, nextOff] = readLabelBytes(buf, offset);
+            offset = nextOff;
             const type = ANNOTATION_TYPE_MAP[typeIdx] ?? "note";
             annotations.push({
               id: crypto.randomUUID(),
@@ -391,10 +397,9 @@ export function decodeGraphFromUrl(
         for (let i = 0; i < edgeLabelCount && offset + 5 <= buf.length; i++) {
           const fromIdx = view.getUint16(offset); offset += 2;
           const toIdx = view.getUint16(offset); offset += 2;
-          const len = buf[offset++];
-          if (offset + len <= buf.length && fromIdx < nodeCount && toIdx < nodeCount) {
-            const text = decodeUtf8(buf, offset, len);
-            offset += len;
+          const [text, nextOff] = readLabelBytes(buf, offset);
+          offset = nextOff;
+          if (fromIdx < nodeCount && toIdx < nodeCount) {
             edgeLabels[`${txids[fromIdx]}->${txids[toIdx]}`] = text;
           }
         }

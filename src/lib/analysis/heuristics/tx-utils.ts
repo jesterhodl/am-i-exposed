@@ -25,6 +25,15 @@ export function isOpReturn(scriptpubkey: string): boolean {
   return scriptpubkey.startsWith("6a");
 }
 
+/** Count occurrences of each output value in the given outputs. */
+export function countOutputValues(outputs: { value: number }[]): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const o of outputs) {
+    counts.set(o.value, (counts.get(o.value) ?? 0) + 1);
+  }
+  return counts;
+}
+
 /** Extract the data portion after the OP_RETURN opcode (0x6a) and push length bytes. */
 export function extractOpReturnData(scriptpubkey: string): string {
   if (!scriptpubkey.startsWith("6a")) return "";

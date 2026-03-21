@@ -1,7 +1,7 @@
 import type { MempoolTransaction, MempoolOutspend } from "@/lib/api/types";
 import type { Finding } from "@/lib/types";
 import { isCoinJoinTx } from "../heuristics/coinjoin";
-import { getSpendableOutputs } from "../heuristics/tx-utils";
+import { getSpendableOutputs, countOutputValues } from "../heuristics/tx-utils";
 import { WHIRLPOOL_DENOMS, truncateId } from "@/lib/constants";
 import { fmtN } from "@/lib/format";
 
@@ -19,8 +19,7 @@ function isLikelyCoinJoinTx(tx: MempoolTransaction): boolean {
 
   // Signal 2: 3+ distinct sources + equal-value output group
   if (distinctParents.size >= 3 && spendable.length >= 3) {
-    const counts = new Map<number, number>();
-    for (const o of spendable) counts.set(o.value, (counts.get(o.value) ?? 0) + 1);
+    const counts = countOutputValues(spendable);
     if ([...counts.values()].some((c) => c >= 2)) return true;
   }
 
@@ -107,8 +106,7 @@ export function analyzeForward(
   // which may have equal outputs but never include OP_RETURN data.
   const hasOpReturn = tx.vout.some((o) => o.scriptpubkey_type === "op_return");
   const spendableVout = getSpendableOutputs(tx.vout);
-  const valueCounts = new Map<number, number>();
-  for (const o of spendableVout) valueCounts.set(o.value, (valueCounts.get(o.value) ?? 0) + 1);
+  const valueCounts = countOutputValues(spendableVout);
   const hasEqualOutputsAtDenom = [...valueCounts.entries()].some(
     ([value, count]) => count >= 2 && WHIRLPOOL_DENOMS.includes(value),
   );

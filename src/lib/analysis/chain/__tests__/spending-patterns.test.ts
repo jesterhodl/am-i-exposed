@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   detectPartialSpendWarning,
-  detectRicochet,
   detectPostCoinJoinPartialSpend,
   detectKycConsolidationBeforeCJ,
   analyzeSpendingPatterns,
 } from "../spending-patterns";
+import { detectRicochet } from "../ricochet-detection";
 import {
   makeTx,
   makeVin,

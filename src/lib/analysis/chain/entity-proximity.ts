@@ -41,7 +41,7 @@ interface EntityHit {
  * Scan trace layers for entity proximity and CoinJoin ancestry.
  */
 export function analyzeEntityProximity(
-  tx: MempoolTransaction,
+  _tx: MempoolTransaction,
   backwardLayers: TraceLayer[],
   forwardLayers: TraceLayer[],
 ): EntityProximityResult {

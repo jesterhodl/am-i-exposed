@@ -1,7 +1,7 @@
 import type { MempoolTransaction } from "@/lib/api/types";
 import type { Finding } from "@/lib/types";
 import { fmtN } from "@/lib/format";
-import { getSpendableOutputs } from "../heuristics/tx-utils";
+import { getSpendableOutputs, countOutputValues } from "../heuristics/tx-utils";
 
 /**
  * JoinMarket Advanced Analysis
@@ -40,6 +40,24 @@ interface TakerMakerResult {
 }
 
 /**
+ * Find the most frequent repeated output value (denomination) in a list of outputs.
+ * Returns the denomination value and its count, or null if no value appears 2+ times.
+ * Ties are broken by largest value (JoinMarket denomination is typically the largest equal group).
+ */
+function findDenomination(outputs: { value: number }[]): { denom: number; count: number } | null {
+  const counts = countOutputValues(outputs);
+  let denom = 0;
+  let maxCount = 0;
+  for (const [value, count] of counts) {
+    if (count >= 2 && (count > maxCount || (count === maxCount && value > denom))) {
+      denom = value;
+      maxCount = count;
+    }
+  }
+  return maxCount >= 2 ? { denom, count: maxCount } : null;
+}
+
+/**
  * Attempt subset-sum attack on a JoinMarket-style CoinJoin transaction.
  *
  * For each non-equal change output, try all subsets of inputs to see if
@@ -71,24 +89,9 @@ export function subsetSumAttack(tx: MempoolTransaction): SubsetSumResult {
   if (spendable.length < 3) return emptyResult;
 
   // Identify equal-value outputs (the denomination)
-  const valueCounts = new Map<number, number>();
-  for (const o of spendable) {
-    valueCounts.set(o.value, (valueCounts.get(o.value) ?? 0) + 1);
-  }
-
-  // Pick the most frequent repeated value as the denomination.
-  // Break ties by largest value (JoinMarket denomination is typically the
-  // most common equal-output value, not the largest).
-  let denomination = 0;
-  let maxCount = 0;
-  for (const [val, count] of valueCounts) {
-    if (count >= 2 && (count > maxCount || (count === maxCount && val > denomination))) {
-      denomination = val;
-      maxCount = count;
-    }
-  }
-
-  if (denomination === 0) return emptyResult;
+  const denomResult = findDenomination(spendable);
+  if (!denomResult) return emptyResult;
+  const denomination = denomResult.denom;
 
   // Change outputs = non-equal-value outputs
   const changeOutputs = spendable
@@ -101,7 +104,7 @@ export function subsetSumAttack(tx: MempoolTransaction): SubsetSumResult {
   const totalSubsets = 1 << inputValues.length; // 2^n
 
   // Count how many denomination outputs exist (taker may receive 1 or more)
-  const denomCount = valueCounts.get(denomination) ?? 0;
+  const denomCount = denomResult.count;
 
   // For each change output, try all non-empty input subsets.
   // The taker may receive 1..denomCount denomination outputs, so try each possibility.
@@ -201,22 +204,9 @@ export function identifyTakerMaker(tx: MempoolTransaction): TakerMakerResult | n
   if (spendable.length < 3) return null;
 
   // Identify denomination
-  const valueCounts = new Map<number, number>();
-  for (const o of spendable) {
-    valueCounts.set(o.value, (valueCounts.get(o.value) ?? 0) + 1);
-  }
-
-  // Pick the most frequent repeated value as the denomination
-  let denomination = 0;
-  let maxCount = 0;
-  for (const [val, count] of valueCounts) {
-    if (count >= 2 && (count > maxCount || (count === maxCount && val > denomination))) {
-      denomination = val;
-      maxCount = count;
-    }
-  }
-
-  if (denomination === 0) return null;
+  const denomResult = findDenomination(spendable);
+  if (!denomResult) return null;
+  const denomination = denomResult.denom;
 
   // Change outputs = non-denomination outputs
   const changeOutputs = spendable
@@ -269,28 +259,6 @@ export function identifyTakerMaker(tx: MempoolTransaction): TakerMakerResult | n
 }
 
 /**
- * Estimate the effective anonymity set for a JoinMarket CoinJoin.
- *
- * JoinMarket change outputs link rounds, so multi-round anonymity
- * is ADDITIVE, not multiplicative:
- *   effectiveAnonSet = participants + chainedRounds * (participants - 1)
- *
- * For a single round with no chaining, effectiveAnonSet = participants.
- * This is weaker than Whirlpool (where rounds are fully unlinkable and
- * the set grows multiplicatively).
- */
-function estimateJoinMarketAnonSet(
-  participants: number,
-  chainedRounds: number = 0,
-): number {
-  if (participants < 2) return 1;
-  // Additive formula: each chained round adds (participants - 1) new
-  // possible sources, not a full multiplicative factor, because change
-  // outputs create a traceable link between rounds.
-  return participants + chainedRounds * (participants - 1);
-}
-
-/**
  * Run the full JoinMarket analysis suite on a transaction.
  * Only meaningful for JoinMarket-style CoinJoin transactions.
  */
@@ -311,29 +279,22 @@ export function analyzeJoinMarket(tx: MempoolTransaction): Finding[] {
 
   // Estimate effective anonymity set for this single round.
   // Count equal-value outputs as participants (each gets one denomination output).
+  // For a single round (no chaining), the effective anon set equals the participant count.
+  // Multi-round JoinMarket anonymity grows additively, not multiplicatively,
+  // because change outputs create a traceable link between rounds.
   const spendable = getSpendableOutputs(tx.vout);
-  const valueCounts = new Map<number, number>();
-  for (const o of spendable) {
-    valueCounts.set(o.value, (valueCounts.get(o.value) ?? 0) + 1);
-  }
-  let participants = 0;
-  for (const [, count] of valueCounts) {
-    if (count >= 2 && count > participants) {
-      participants = count;
-    }
-  }
+  const denomInfo = findDenomination(spendable);
+  const participants = denomInfo?.count ?? 0;
 
   if (participants >= 2) {
-    // Single round: chainedRounds = 0, so effectiveAnonSet = participants
-    const effectiveAnonSet = estimateJoinMarketAnonSet(participants, 0);
     findings.push({
       id: "joinmarket-anon-set",
-      severity: effectiveAnonSet >= 4 ? "good" : "medium",
+      severity: participants >= 4 ? "good" : "medium",
       confidence: "medium",
-      title: `JoinMarket anonymity set: ${effectiveAnonSet} participants`,
+      title: `JoinMarket anonymity set: ${participants} participants`,
       description:
         `This JoinMarket round has ${participants} equal-output participants, ` +
-        `giving an effective anonymity set of ${effectiveAnonSet}. ` +
+        `giving an effective anonymity set of ${participants}. ` +
         "JoinMarket's change outputs link rounds, so multi-round anonymity grows " +
         "additively (participants + chainedRounds * (participants - 1)), not " +
         "multiplicatively. For stronger privacy, use more participants per round " +
@@ -344,7 +305,7 @@ export function analyzeJoinMarket(tx: MempoolTransaction): Finding[] {
       scoreImpact: 0, // Informational - CoinJoin impact is scored by h4-joinmarket
       params: {
         participants,
-        effectiveAnonSet,
+        effectiveAnonSet: participants,
         chainedRounds: 0,
       },
     });

@@ -16,7 +16,7 @@ import { computeBoltzmann, isAutoComputable, extractTxValues } from "@/lib/analy
 import { enhanceEntropyFinding } from "@/lib/analysis/boltzmann-enhance";
 import { enrichBip47Finding, enrichRicochetFinding } from "@/lib/analysis/enrichment";
 import { getAnalysisSettings, type AnalysisSettings } from "@/hooks/useAnalysisSettings";
-import { runChainTrace, runChainAnalysis } from "@/hooks/useChainTrace";
+import { runChainTrace, runChainAnalysis } from "@/lib/analysis/chain-trace";
 import { makeIncompletePrevoutFinding } from "@/hooks/useAnalysisState";
 import type { ApiClient } from "@/lib/api/client";
 import type { MempoolTransaction, MempoolOutspend } from "@/lib/api/types";
