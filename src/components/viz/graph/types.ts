@@ -39,8 +39,8 @@ export interface GraphExplorerProps {
   onExpandPortInput?: (txid: string, inputIndex: number) => void;
   /** Expand forward from a specific output port. */
   onExpandPortOutput?: (txid: string, outputIndex: number) => void;
-  /** Cached outspends per txid. */
-  outspendCache?: Map<string, MempoolOutspend[]>;
+  /** Cached outspends per txid (readonly to prevent external mutation). */
+  outspendCache?: ReadonlyMap<string, MempoolOutspend[]>;
   /** Trigger auto-trace forward from a specific output. */
   onAutoTrace?: (txid: string, outputIndex: number) => void;
   /** Cancel in-progress auto-trace. */

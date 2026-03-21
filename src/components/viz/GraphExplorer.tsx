@@ -1,31 +1,60 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ParentSize } from "@visx/responsive";
 import { useTranslation } from "react-i18next";
-import { SVG_COLORS, GRADE_HEX_SVG } from "./shared/svgConstants";
-import { probColor } from "./shared/linkabilityColors";
-import { ChartTooltip, useChartTooltip } from "./shared/ChartTooltip";
-import { truncateId } from "@/lib/constants";
+import { useChartTooltip } from "./shared/ChartTooltip";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { useGraphBoltzmann } from "@/hooks/useGraphBoltzmann";
-import { analyzeTransactionSync } from "@/lib/analysis/analyze-sync";
-import { analyzeChangeDetection } from "@/lib/analysis/heuristics/change-detection";
-import { GraphSidebar, SIDEBAR_WIDTH } from "./graph/GraphSidebar";
-import { ENTITY_CATEGORY_COLORS, MAX_ZOOM, MIN_ZOOM } from "./graph/constants";
+import { GraphSidebar } from "./graph/GraphSidebar";
+import { MAX_ZOOM, MIN_ZOOM } from "./graph/constants";
 import { layoutGraph } from "./graph/layout";
-import { GraphCanvas } from "./graph/GraphCanvas";
 import { CloseIcon } from "./graph/icons";
 import { GraphToolbar } from "./graph/GraphToolbar";
 import { GraphLegend } from "./graph/GraphLegend";
-import { entropyColor } from "./graph/privacyGradient";
-import type { GraphExplorerProps, TooltipData, NodeFilter, ViewTransform } from "./graph/types";
+import { GraphTooltipContent } from "./graph/GraphTooltipContent";
+import { GraphViewport } from "./graph/GraphViewport";
+import { useGraphExplorerState } from "./graph/useGraphExplorerState";
+import { useGraphHeatMap } from "./graph/useGraphHeatMap";
+import { useChangeOutputDetection } from "./graph/useChangeOutputDetection";
+import type { GraphExplorerProps, TooltipData, NodeFilter, ViewTransform, LayoutNode } from "./graph/types";
 import type { GraphAnnotation, SavedGraph } from "@/lib/graph/saved-graph-types";
-import type { ScoringResult } from "@/lib/types";
 
 // Re-export types for consumers that import from this file
 export type { GraphExplorerProps } from "./graph/types";
+
+/** Horizontal padding subtracted from window.innerWidth for viewport calculations. */
+const VIEWPORT_PAD_X = 32;
+/** Vertical padding subtracted from window.innerHeight for viewport calculations. */
+const VIEWPORT_PAD_Y = 160;
+
+/** Compute the usable viewport dimensions (window minus padding). */
+function getViewportDims() {
+  return { cw: window.innerWidth - VIEWPORT_PAD_X, ch: window.innerHeight - VIEWPORT_PAD_Y };
+}
+
+/** Compute a ViewTransform that centers the root nodes within the viewport. */
+function computeRootCenterView(roots: LayoutNode[]): ViewTransform {
+  const { cw, ch } = getViewportDims();
+  if (roots.length === 0) return { x: 0, y: 0, scale: 1 };
+  const avgX = roots.reduce((s, n) => s + n.x + n.width / 2, 0) / roots.length;
+  const avgY = roots.reduce((s, n) => s + n.y + n.height / 2, 0) / roots.length;
+  return { x: cw / 2 - avgX, y: ch / 2 - avgY, scale: 1 };
+}
+
+/** Compute a ViewTransform that fits all layout nodes within the viewport. */
+function computeFitView(ln: LayoutNode[]): ViewTransform | null {
+  if (ln.length === 0) return null;
+  const { cw, ch } = getViewportDims();
+  const minX = Math.min(...ln.map((n) => n.x));
+  const minY = Math.min(...ln.map((n) => n.y));
+  const maxX = Math.max(...ln.map((n) => n.x + n.width));
+  const maxY = Math.max(...ln.map((n) => n.y + n.height));
+  const nodesW = maxX - minX;
+  const nodesH = maxY - minY;
+  const s = Math.min(cw / nodesW, ch / nodesH, 1.5);
+  return { x: (cw - nodesW * s) / 2 - minX * s, y: (ch - nodesH * s) / 2 - minY * s, scale: s };
+}
 
 /**
  * OXT-style interactive graph explorer.
@@ -33,165 +62,44 @@ export type { GraphExplorerProps } from "./graph/types";
  * Renders an expandable transaction DAG where each node represents a transaction.
  * Users can click inputs (left side) to expand backward or outputs (right side)
  * to expand forward. Nodes are colored by privacy grade and entity attribution.
- *
- * Features: fullscreen mode, entity category colors, OFAC warnings, hover glow,
- * edge highlighting, click-to-analyze panel, minimap, node filtering, keyboard nav,
- * path tracing, risk heat map, SVG export.
  */
 export function GraphExplorer(props: GraphExplorerProps) {
   const { t } = useTranslation();
   const tooltip = useChartTooltip<TooltipData>();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // State
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
-  const [selectedNode, setSelectedNode] = useState<{ txid: string; x: number; y: number } | null>(null);
-  const [focusedNode, setFocusedNode] = useState<string | null>(null);
-  const [filter, setFilter] = useState<NodeFilter>({ showCoinJoin: true, showEntity: true, showStandard: true });
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    typeof window !== "undefined" && window.innerWidth < 640,
-  );
+  // ─── Reducer state ──────────────────────────────────────
+  const {
+    state, dispatch, userToggledRef, toggleChange,
+    handleNodePositionChange, handleSetNodeLabel, handleSetEdgeLabel,
+    handleToggleHeatMap, handleToggleFingerprint,
+    handleLayoutComplete, handleFullscreenExit,
+    restoreSavedGraph, restoreFromLastLoaded,
+  } = useGraphExplorerState(props.alwaysFullscreen);
 
-  // Node position overrides from dragging
-  const [nodePositionOverrides, setNodePositionOverrides] = useState<Map<string, { x: number; y: number }>>(new Map());
-  const handleNodePositionChange = useCallback((txid: string, x: number, y: number) => {
-    setNodePositionOverrides((prev) => {
-      const next = new Map(prev);
-      next.set(txid, { x, y });
-      return next;
-    });
-  }, []);
+  const {
+    hoveredNode, selectedNode, focusedNode, filter, sidebarCollapsed,
+    nodePositionOverrides, annotations, annotateMode, nodeLabels, edgeLabels,
+    viewTransform, edgeMode, heatMapActive, heatMap, heatProgress,
+    fingerprintMode, changeOutputs, visibleCount,
+  } = state;
 
-  // Annotations
-  const [annotations, setAnnotations] = useState<GraphAnnotation[]>([]);
-  const [annotateMode, setAnnotateMode] = useState(false);
-
-  // Restore state when a saved graph is loaded (from URL or workspace)
-  const lastLoadedRef = useRef<SavedGraph | null>(null);
-  useEffect(() => {
-    const graph = props.lastLoadedGraph;
-    if (!graph || graph === lastLoadedRef.current) return;
-    lastLoadedRef.current = graph;
-    setNodePositionOverrides(graph.nodePositions ? new Map(Object.entries(graph.nodePositions)) : new Map());
-    setAnnotations(graph.annotations ?? []);
-    setNodeLabels(graph.nodeLabels ? new Map(Object.entries(graph.nodeLabels)) : new Map());
-    setEdgeLabels(graph.edgeLabels ? new Map(Object.entries(graph.edgeLabels)) : new Map());
-  }, [props.lastLoadedGraph]);
-
-  // Inline labels on nodes and edges
-  const [nodeLabels, setNodeLabels] = useState<Map<string, string>>(new Map());
-  const [edgeLabels, setEdgeLabels] = useState<Map<string, string>>(new Map());
-  const handleSetNodeLabel = useCallback((txid: string, label: string) => {
-    setNodeLabels((prev) => {
-      const next = new Map(prev);
-      if (label) next.set(txid, label);
-      else next.delete(txid);
-      return next;
-    });
-  }, []);
-  const handleSetEdgeLabel = useCallback((key: string, label: string) => {
-    setEdgeLabels((prev) => {
-      const next = new Map(prev);
-      if (label) next.set(key, label);
-      else next.delete(key);
-      return next;
-    });
-  }, []);
-
-  // View transform for fullscreen pan/zoom
-  // alwaysFullscreen starts with an initial transform so pan/zoom works immediately
-  const [viewTransform, setViewTransform] = useState<ViewTransform | undefined>(
-    props.alwaysFullscreen ? { x: 0, y: 0, scale: 1 } : undefined,
-  );
-
-  // Fullscreen toggle (onExit clears selection + view transform)
-  const handleFullscreenExit = useCallback(() => {
-    setSelectedNode(null);
-    setViewTransform(undefined);
-  }, []);
-  const { isExpanded, expand: expandFullscreen, collapse: collapseFullscreen } = useFullscreen(handleFullscreenExit);
-
-  // Edge coloring mode: mutually exclusive. Only one active at a time.
-  type EdgeMode = "default" | "linkability" | "entropy";
-  const [edgeMode, setEdgeMode] = useState<EdgeMode>("default");
-  // hasLinkability is set after useGraphBoltzmann below (needs boltzmannCache)
   const linkabilityEdgeMode = edgeMode === "linkability";
   const entropyGradientMode = edgeMode === "entropy";
 
-  // Heat map state
-  const [heatMapActive, setHeatMapActive] = useState(false);
-  const [heatMap, setHeatMap] = useState<Map<string, ScoringResult>>(new Map());
-  const [heatProgress, setHeatProgress] = useState(0);
-
-  // Fingerprint mode (mutually exclusive with heat map)
-  const [fingerprintMode, setFingerprintMode] = useState(false);
-
-  // Change marking state - auto-populated from heuristics, user can toggle
-  const [changeOutputs, setChangeOutputs] = useState<Set<string>>(new Set());
-  const userToggledRef = useRef<Set<string>>(new Set()); // tracks manual overrides
-  const toggleChange = useCallback((txid: string, outputIndex: number) => {
-    const key = `${txid}:${outputIndex}`;
-    userToggledRef.current.add(key); // remember user explicitly toggled this
-    setChangeOutputs((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  }, []);
-
-  // Incrementally auto-mark change outputs using heuristics for newly added nodes only.
-  // Tracks which txids have been analyzed to avoid re-running heuristics on every graph update.
-  const analyzedChangeTxidsRef = useRef<Set<string>>(new Set());
+  // Restore state when a saved graph is loaded (from URL or workspace)
   useEffect(() => {
-    const newKeys = new Set<string>();
-    let hasNew = false;
-    for (const [txid, node] of props.nodes) {
-      if (analyzedChangeTxidsRef.current.has(txid)) continue;
-      analyzedChangeTxidsRef.current.add(txid);
-      hasNew = true;
-      const result = analyzeChangeDetection(node.tx);
-      for (const finding of result.findings) {
-        if (finding.id === "h2-change-detected" && finding.params) {
-          const idx = finding.params.changeIndex;
-          if (typeof idx === "number") newKeys.add(`${txid}:${idx}`);
-        }
-        if ((finding.id === "h2-same-address-io" || finding.id === "h2-self-send") && finding.params) {
-          const indicesStr = finding.params.selfSendIndices;
-          if (typeof indicesStr === "string" && indicesStr.length > 0) {
-            for (const idx of indicesStr.split(",")) {
-              const n = parseInt(idx, 10);
-              if (!isNaN(n)) newKeys.add(`${txid}:${n}`);
-            }
-          }
-        }
-      }
-    }
-    // Clean up analyzed set for removed nodes
-    for (const txid of analyzedChangeTxidsRef.current) {
-      if (!props.nodes.has(txid)) analyzedChangeTxidsRef.current.delete(txid);
-    }
-    if (!hasNew) return;
-    // Merge new auto-marks into existing set (user overrides take precedence)
-    setChangeOutputs((prev) => {
-      const next = new Set(prev);
-      for (const key of newKeys) {
-        if (!userToggledRef.current.has(key)) next.add(key);
-      }
-      return next;
-    });
-  }, [props.nodes]);
+    restoreFromLastLoaded(props.lastLoadedGraph);
+  }, [props.lastLoadedGraph, restoreFromLastLoaded]);
 
-  // Sidebar tx data (available when a node is expanded, regardless of collapsed state)
+  // Sidebar tx data
   const sidebarTx = props.expandedNodeTxid ? props.nodes.get(props.expandedNodeTxid)?.tx : undefined;
   const showSidebar = !!sidebarTx && !sidebarCollapsed;
 
-  // ─── Boltzmann (extracted to custom hook) ──────────────
+  // ─── Boltzmann ─────────────────────────────────────────
   const {
-    getBoltzmannResult,
-    triggerBoltzmann,
-    computingBoltzmannRef,
-    boltzmannProgressMap,
-    boltzmannCache,
+    getBoltzmannResult, triggerBoltzmann,
+    computingBoltzmann, boltzmannProgressMap, boltzmannCache,
   } = useGraphBoltzmann({
     nodes: props.nodes,
     rootTxid: props.rootTxid,
@@ -200,113 +108,44 @@ export function GraphExplorer(props: GraphExplorerProps) {
 
   const hasLinkability = !!props.rootBoltzmannResult || boltzmannCache.size > 0;
   const cycleEdgeMode = useCallback(() => {
-    setEdgeMode((prev) => {
-      if (prev === "default") return hasLinkability ? "linkability" : "entropy";
-      if (prev === "linkability") return "entropy";
-      return "default";
-    });
-  }, [hasLinkability]);
+    dispatch({ type: "CYCLE_EDGE_MODE", hasLinkability });
+  }, [hasLinkability, dispatch]);
 
-  // Zoom toward center helper
+  // Fullscreen toggle
+  const { isExpanded, expand: expandFullscreen, collapse: collapseFullscreen } = useFullscreen(handleFullscreenExit);
+
+  // Zoom helper
   const zoomBy = useCallback((factor: number) => {
     if (!viewTransform) return;
-    const cw = window.innerWidth - 32;
-    const ch = window.innerHeight - 160;
+    const { cw, ch } = getViewportDims();
     const cx = cw / 2;
     const cy = ch / 2;
     const gx = (cx - viewTransform.x) / viewTransform.scale;
     const gy = (cy - viewTransform.y) / viewTransform.scale;
     const s = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewTransform.scale * factor));
-    setViewTransform({ x: cx - gx * s, y: cy - gy * s, scale: s });
-  }, [viewTransform]);
+    dispatch({ type: "SET_VIEW_TRANSFORM", vt: { x: cx - gx * s, y: cy - gy * s, scale: s } });
+  }, [viewTransform, dispatch]);
 
-  // Heat map computation - uses rAF for chunking, updates state only on completion
-  const heatResultsRef = useRef<Map<string, ScoringResult>>(new Map());
-  useEffect(() => {
-    if (!heatMapActive) return;
-    const analyze = analyzeTransactionSync;
-    const nodeEntries = Array.from(props.nodes.entries());
-    const results = heatResultsRef.current;
-    let idx = 0;
-    let cancelled = false;
+  // ─── Heat map computation ──────────────────────────────
+  useGraphHeatMap({ active: heatMapActive, nodes: props.nodes, dispatch });
 
-    function processNext() {
-      if (cancelled) return;
-      const start = performance.now();
-      while (idx < nodeEntries.length && performance.now() - start < 16) {
-        const [txid, gn] = nodeEntries[idx];
-        if (!results.has(txid)) {
-          results.set(txid, analyze(gn.tx));
-        }
-        idx++;
-        setHeatProgress(Math.round((idx / nodeEntries.length) * 100));
-      }
-      if (idx < nodeEntries.length) {
-        requestAnimationFrame(processNext);
-      } else {
-        // Single state update after all nodes processed
-        setHeatMap(new Map(results));
-      }
-    }
+  // ─── Auto-mark change outputs ──────────────────────────
+  useChangeOutputDetection({ nodes: props.nodes, dispatch, userToggledRef });
 
-    processNext();
-    return () => { cancelled = true; };
-  }, [heatMapActive, props.nodes]);
-
-  // Count hidden nodes
-  const totalNodes = props.nodeCount;
-  const [visibleCount, setVisibleCount] = useState(totalNodes);
-  const handleLayoutComplete = useCallback((info: { visibleCount: number }) => {
-    setVisibleCount(info.visibleCount);
-  }, []);
-  const hiddenCount = totalNodes - visibleCount;
-
-  // ─── Toolbar helpers (must be before early return for hooks rules) ───
-
-  const handleToggleHeatMap = useCallback(() => {
-    setHeatMapActive(!heatMapActive);
-    if (!heatMapActive) setFingerprintMode(false);
-  }, [heatMapActive]);
-
-  const handleToggleFingerprint = useCallback(() => {
-    setFingerprintMode(!fingerprintMode);
-    if (!fingerprintMode) setHeatMapActive(false);
-  }, [fingerprintMode]);
+  // ─── Layout helpers ────────────────────────────────────
+  const hiddenCount = props.nodeCount - visibleCount;
 
   const handleExpandFullscreen = useCallback(() => {
     expandFullscreen();
     const { layoutNodes: ln } = layoutGraph(props.nodes, props.rootTxid, filter, props.rootTxids, undefined, true);
-    const roots = ln.filter((n) => n.isRoot);
-    const cw = window.innerWidth - 32;
-    const ch = window.innerHeight - 160;
-    if (roots.length > 0) {
-      const avgX = roots.reduce((s, n) => s + n.x + n.width / 2, 0) / roots.length;
-      const avgY = roots.reduce((s, n) => s + n.y + n.height / 2, 0) / roots.length;
-      setViewTransform({ x: cw / 2 - avgX, y: ch / 2 - avgY, scale: 1 });
-    } else {
-      setViewTransform({ x: 0, y: 0, scale: 1 });
-    }
-  }, [expandFullscreen, props.nodes, props.rootTxid, filter, props.rootTxids]);
+    dispatch({ type: "SET_VIEW_TRANSFORM", vt: computeRootCenterView(ln.filter((n) => n.isRoot)) });
+  }, [expandFullscreen, props.nodes, props.rootTxid, filter, props.rootTxids, dispatch]);
 
   const handleFitView = useCallback(() => {
     const { layoutNodes: ln } = layoutGraph(props.nodes, props.rootTxid, filter, props.rootTxids, undefined, true);
-    if (ln.length === 0) return;
-    // Compute tight bounding box around actual nodes (ignores empty padding)
-    const minX = Math.min(...ln.map((n) => n.x));
-    const minY = Math.min(...ln.map((n) => n.y));
-    const maxX = Math.max(...ln.map((n) => n.x + n.width));
-    const maxY = Math.max(...ln.map((n) => n.y + n.height));
-    const nodesW = maxX - minX;
-    const nodesH = maxY - minY;
-    const cw = window.innerWidth - 32;
-    const ch = window.innerHeight - 160;
-    const s = Math.min(cw / nodesW, ch / nodesH, 1.5);
-    setViewTransform({
-      x: (cw - nodesW * s) / 2 - minX * s,
-      y: (ch - nodesH * s) / 2 - minY * s,
-      scale: s,
-    });
-  }, [props.nodes, props.rootTxid, filter, props.rootTxids]);
+    const vt = computeFitView(ln);
+    if (vt) dispatch({ type: "SET_VIEW_TRANSFORM", vt });
+  }, [props.nodes, props.rootTxid, filter, props.rootTxids, dispatch]);
 
   // Auto-center on root change in alwaysFullscreen mode
   const prevRootRef = useRef<string>("");
@@ -314,32 +153,34 @@ export function GraphExplorer(props: GraphExplorerProps) {
     if (!props.alwaysFullscreen || !props.rootTxid || props.nodes.size === 0) return;
     if (prevRootRef.current === props.rootTxid) return;
     prevRootRef.current = props.rootTxid;
-    // Small delay so GraphCanvas re-renders with new nodes before we read layout
     requestAnimationFrame(() => {
       const { layoutNodes: ln } = layoutGraph(props.nodes, props.rootTxid, filter, props.rootTxids, undefined, true);
       const roots = ln.filter((n) => n.isRoot);
-      const cw = window.innerWidth - 32;
-      const ch = window.innerHeight - 160;
-      if (roots.length > 0) {
-        const avgX = roots.reduce((s, n) => s + n.x + n.width / 2, 0) / roots.length;
-        const avgY = roots.reduce((s, n) => s + n.y + n.height / 2, 0) / roots.length;
-        setViewTransform({ x: cw / 2 - avgX, y: ch / 2 - avgY, scale: 1 });
-      }
+      if (roots.length > 0) dispatch({ type: "SET_VIEW_TRANSFORM", vt: computeRootCenterView(roots) });
     });
-  }, [props.alwaysFullscreen, props.rootTxid, props.nodes, filter, props.rootTxids]);
+  }, [props.alwaysFullscreen, props.rootTxid, props.nodes, filter, props.rootTxids, dispatch]);
 
-  // ─── Global keyboard shortcuts ───────
+  // ─── Stable callbacks ──────────────────────────────────
+  const { onLoadSavedGraph } = props;
+  const handleLoadSavedGraph = useCallback((graph: SavedGraph) => {
+    restoreSavedGraph(graph);
+    onLoadSavedGraph?.(graph);
+  }, [restoreSavedGraph, onLoadSavedGraph]);
+
+  const setViewTransform = useCallback((vt: ViewTransform | undefined) => {
+    dispatch({ type: "SET_VIEW_TRANSFORM", vt });
+  }, [dispatch]);
+
+  const setAnnotations = useCallback((a: GraphAnnotation[]) => {
+    dispatch({ type: "SET_ANNOTATIONS", annotations: a });
+  }, [dispatch]);
+
+  // ─── Keyboard shortcuts ────────────────────────────────
   const { onUndo, onReset } = props;
-  // Toolbar handler refs - populated by GraphToolbar via _tbHandlers
   const tbHandlersRef = useRef<Record<string, () => void>>({});
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      // Ctrl+S always works
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        tbHandlersRef.current.save?.();
-        return;
-      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); tbHandlersRef.current.save?.(); return; }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         if (e.key === "Escape") (e.target as HTMLElement).blur();
         return;
@@ -357,134 +198,70 @@ export function GraphExplorer(props: GraphExplorerProps) {
         case "s": tbHandlersRef.current.save?.(); break;
         case "o": tbHandlersRef.current.open?.(); break;
         case "c": tbHandlersRef.current.share?.(); break;
-        case "a": setAnnotateMode((prev) => !prev); break;
-        case "f":
-          if (isExpanded) collapseFullscreen();
-          else handleExpandFullscreen();
-          break;
-        case "Escape":
-          if (isExpanded) collapseFullscreen();
-          break;
+        case "a": dispatch({ type: "TOGGLE_ANNOTATE_MODE" }); break;
+        case "f": if (isExpanded) collapseFullscreen(); else handleExpandFullscreen(); break;
+        case "Escape": if (isExpanded) collapseFullscreen(); break;
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [handleToggleHeatMap, handleToggleFingerprint, cycleEdgeMode, isExpanded, collapseFullscreen, handleExpandFullscreen, onUndo, onReset, zoomBy, handleFitView]);
+  }, [handleToggleHeatMap, handleToggleFingerprint, cycleEdgeMode, isExpanded, collapseFullscreen, handleExpandFullscreen, onUndo, onReset, zoomBy, handleFitView, dispatch]);
 
-  // In alwaysFullscreen mode, render toolbar even with 0 nodes (for search + load)
+  // Early return for empty graph (but not alwaysFullscreen)
   if (props.nodes.size === 0 && !props.alwaysFullscreen) return null;
 
-  // Toggle filter helpers
-  const toggleFilter = (key: keyof NodeFilter) => {
-    setFilter((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  // ─── Shared prop objects ───────────────────────────────
 
   const toolbarProps = {
-    nodeCount: props.nodeCount,
-    maxNodes: props.maxNodes,
-    hiddenCount,
-    heatMapActive,
-    heatProgress,
-    fingerprintMode,
-    edgeMode,
-    onToggleHeatMap: handleToggleHeatMap,
-    onToggleFingerprint: handleToggleFingerprint,
-    canUndo: props.canUndo ?? false,
-    onUndo: props.onUndo ?? (() => {}),
-    onCycleEdgeMode: cycleEdgeMode,
-    onReset: props.onReset,
-    // Search
-    onSearch: props.onSearch,
-    searchLoading: props.searchLoading,
-    searchError: props.searchError,
-    currentTxid: props.rootTxid || null,
-    currentLabel: props.currentLabel ?? null,
-    // Save/Load/Share
-    nodes: props.nodes,
-    rootTxid: props.rootTxid,
-    rootTxids: props.rootTxids,
-    network: props.network,
-    currentGraphId: props.currentGraphId ?? null,
-    onLoadSavedGraph: props.onLoadSavedGraph ? (graph: SavedGraph) => {
-      // Restore annotation/label/position state from saved graph
-      if (graph.nodePositions) {
-        setNodePositionOverrides(new Map(Object.entries(graph.nodePositions)));
-      } else {
-        setNodePositionOverrides(new Map());
-      }
-      setAnnotations(graph.annotations ?? []);
-      setNodeLabels(graph.nodeLabels ? new Map(Object.entries(graph.nodeLabels)) : new Map());
-      setEdgeLabels(graph.edgeLabels ? new Map(Object.entries(graph.edgeLabels)) : new Map());
-      // Delegate graph topology loading to parent
-      props.onLoadSavedGraph!(graph);
-    } : undefined,
+    nodeCount: props.nodeCount, maxNodes: props.maxNodes, hiddenCount,
+    heatMapActive, heatProgress, fingerprintMode, edgeMode,
+    onToggleHeatMap: handleToggleHeatMap, onToggleFingerprint: handleToggleFingerprint,
+    canUndo: props.canUndo ?? false, onUndo: props.onUndo ?? (() => {}),
+    onCycleEdgeMode: cycleEdgeMode, onReset: props.onReset,
+    onSearch: props.onSearch, searchLoading: props.searchLoading, searchError: props.searchError,
+    currentTxid: props.rootTxid || null, currentLabel: props.currentLabel ?? null,
+    nodes: props.nodes, rootTxid: props.rootTxid, rootTxids: props.rootTxids,
+    network: props.network, currentGraphId: props.currentGraphId ?? null,
+    onLoadSavedGraph: onLoadSavedGraph ? handleLoadSavedGraph : undefined,
     onRegisterHandlers: (handlers: Record<string, () => void>) => { tbHandlersRef.current = handlers; },
-    annotateMode,
-    onToggleAnnotateMode: () => setAnnotateMode((prev) => !prev),
-    nodePositionOverrides,
-    annotations,
-    nodeLabels,
-    edgeLabels,
+    annotateMode, onToggleAnnotateMode: () => dispatch({ type: "TOGGLE_ANNOTATE_MODE" }),
+    nodePositionOverrides, annotations, nodeLabels, edgeLabels,
   };
 
-  // ─── Legend (extracted to GraphLegend component) ────────
+  const canvasProps = {
+    ...props, tooltip, scrollRef, filter, hoveredNode,
+    setHoveredNode: (txid: string | null) => dispatch({ type: "SET_HOVERED_NODE", txid }),
+    selectedNode,
+    setSelectedNode: (node: { txid: string; x: number; y: number } | null) => dispatch({ type: "SET_SELECTED_NODE", node }),
+    focusedNode,
+    setFocusedNode: (txid: string | null) => dispatch({ type: "SET_FOCUSED_NODE", txid }),
+    heatMap, heatMapActive, linkabilityEdgeMode, fingerprintMode, entropyGradientMode,
+    changeOutputs, onLayoutComplete: handleLayoutComplete, boltzmannCache,
+    nodePositionOverrides, onNodePositionChange: handleNodePositionChange,
+    annotations, annotateMode, onAnnotationsChange: setAnnotations,
+    nodeLabels, onSetNodeLabel: handleSetNodeLabel, edgeLabels, onSetEdgeLabel: handleSetEdgeLabel,
+  };
 
   const legend = (
     <GraphLegend
       filter={filter}
-      onToggleFilter={toggleFilter}
+      onToggleFilter={(key: keyof NodeFilter) => dispatch({ type: "TOGGLE_FILTER", key })}
       fingerprintMode={fingerprintMode}
       changeOutputs={changeOutputs}
     />
   );
 
-  // ─── Shared canvas props ───────────────────────────────
+  const tooltipContent = (
+    <GraphTooltipContent tooltip={tooltip} scrollRef={scrollRef} heatMapActive={heatMapActive} heatMap={heatMap} />
+  );
 
-  const canvasProps = {
-    ...props,
-    tooltip,
-    scrollRef,
-    filter,
-    hoveredNode,
-    setHoveredNode,
-    selectedNode,
-    setSelectedNode,
-    focusedNode,
-    setFocusedNode,
-    heatMap,
-    heatMapActive,
-    linkabilityEdgeMode,
-    fingerprintMode,
-    entropyGradientMode,
-    changeOutputs,
-    onLayoutComplete: handleLayoutComplete,
-    boltzmannCache,
-    nodePositionOverrides,
-    onNodePositionChange: handleNodePositionChange,
-    annotations,
-    annotateMode,
-    onAnnotationsChange: setAnnotations,
-    nodeLabels,
-    onSetNodeLabel: handleSetNodeLabel,
-    edgeLabels,
-    onSetEdgeLabel: handleSetEdgeLabel,
-  };
-
-  const fullscreenCanvasProps = {
-    ...canvasProps,
-    viewTransform,
-    onViewTransformChange: setViewTransform,
-  };
-
-  // ─── Sidebar rendering (shared between inline and fullscreen) ────
-
+  // ─── Sidebar rendering (shared between all modes) ──────
   const renderSidebar = (keyPrefix: string) => {
     if (!sidebarTx || !props.expandedNodeTxid) return null;
-
     if (sidebarCollapsed) {
       return (
         <button
-          onClick={() => setSidebarCollapsed(false)}
+          onClick={() => dispatch({ type: "SET_SIDEBAR_COLLAPSED", collapsed: false })}
           className="absolute right-0 top-2 z-10 w-5 h-8 bg-card-bg/90 border border-card-border border-r-0 rounded-l transition-colors cursor-pointer flex items-center justify-center hover:bg-surface-inset"
           title={t("graph.showSidebar", { defaultValue: "Show sidebar" })}
         >
@@ -492,7 +269,6 @@ export function GraphExplorer(props: GraphExplorerProps) {
         </button>
       );
     }
-
     return (
       <AnimatePresence>
         <GraphSidebar
@@ -500,14 +276,14 @@ export function GraphExplorer(props: GraphExplorerProps) {
           tx={sidebarTx}
           outspends={props.outspendCache?.get(props.expandedNodeTxid)}
           onClose={() => props.onToggleExpand?.(props.expandedNodeTxid!)}
-          onCollapse={() => setSidebarCollapsed(true)}
+          onCollapse={() => dispatch({ type: "SET_SIDEBAR_COLLAPSED", collapsed: true })}
           onFullScan={(txid) => props.onTxClick?.(txid)}
           onExpandInput={props.onExpandInput}
           onExpandOutput={props.onExpandOutput}
           changeOutputs={changeOutputs}
           onToggleChange={toggleChange}
           boltzmannResult={props.expandedNodeTxid ? getBoltzmannResult(props.expandedNodeTxid) : undefined}
-          computingBoltzmann={props.expandedNodeTxid ? computingBoltzmannRef.current.has(props.expandedNodeTxid) : false}
+          computingBoltzmann={props.expandedNodeTxid ? computingBoltzmann.has(props.expandedNodeTxid) : false}
           boltzmannProgress={props.expandedNodeTxid ? boltzmannProgressMap.get(props.expandedNodeTxid) : undefined}
           onComputeBoltzmann={props.expandedNodeTxid ? () => triggerBoltzmann(props.expandedNodeTxid!) : undefined}
           onAutoTrace={props.onAutoTrace}
@@ -520,100 +296,28 @@ export function GraphExplorer(props: GraphExplorerProps) {
     );
   };
 
-  // ─── Tooltip content ──────────────────────────────────
+  const zoomProps = { onZoomIn: () => zoomBy(1.25), onZoomOut: () => zoomBy(1 / 1.25), onFitView: handleFitView };
 
-  const tooltipContent = tooltip.tooltipOpen && tooltip.tooltipData && (
-    <ChartTooltip top={tooltip.tooltipTop} left={tooltip.tooltipLeft} containerRef={scrollRef}>
-      {tooltip.tooltipData.linkProb !== undefined || tooltip.tooltipData.entropyNormalized !== undefined ? (
-        /* Edge hover: linkability or entropy chip */
-        <div className="flex items-center gap-2">
-          {tooltip.tooltipData.linkProb !== undefined && (
-            <div className="flex items-center gap-1.5">
-              <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: probColor(tooltip.tooltipData.linkProb), display: "inline-block", flexShrink: 0 }} />
-              <span className="text-xs font-medium" style={{ color: SVG_COLORS.foreground }}>{Math.round(tooltip.tooltipData.linkProb * 100)}{t("graph.linkabilityPercent", { defaultValue: "% linkability" })}</span>
-            </div>
-          )}
-          {tooltip.tooltipData.entropyNormalized !== undefined && (
-            <div className="flex items-center gap-1.5">
-              <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: entropyColor(tooltip.tooltipData.entropyNormalized), display: "inline-block", flexShrink: 0 }} />
-              <span className="text-xs font-medium" style={{ color: SVG_COLORS.foreground }}>
-                {(tooltip.tooltipData.entropyBits ?? 0).toFixed(2)} {t("graph.effectiveEntropy", { defaultValue: "bits effective entropy" })}
-              </span>
-            </div>
-          )}
-        </div>
-      ) : (
-      /* Node hover: minimal chip - only data NOT already on the canvas label */
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-xs" style={{ color: SVG_COLORS.muted }}>{truncateId(tooltip.tooltipData.txid, 6)}</span>
-        {tooltip.tooltipData.entityLabel ? (
-          <span className="text-xs font-medium" style={{ color: ENTITY_CATEGORY_COLORS[tooltip.tooltipData.entityCategory ?? "unknown"] }}>
-            {tooltip.tooltipData.entityLabel}
-            {tooltip.tooltipData.entityOfac && <span style={{ color: SVG_COLORS.critical }}> OFAC</span>}
-          </span>
-        ) : tooltip.tooltipData.isCoinJoin ? (
-          <span className="text-xs font-medium" style={{ color: SVG_COLORS.good }}>
-            {tooltip.tooltipData.coinJoinType ?? "CoinJoin"}
-          </span>
-        ) : null}
-        <span className="text-xs" style={{ color: SVG_COLORS.muted }}>{tooltip.tooltipData.feeRate} sat/vB</span>
-        {!tooltip.tooltipData.confirmed && (
-          <span className="text-xs font-medium" style={{ color: SVG_COLORS.medium }}>{t("graph.unconfirmed", { defaultValue: "Unconfirmed" })}</span>
-        )}
-        {(() => {
-          const heatEntry = heatMapActive ? heatMap.get(tooltip.tooltipData.txid) : undefined;
-          return heatEntry ? (
-            <span className="text-xs font-semibold" style={{ color: GRADE_HEX_SVG[heatEntry.grade] }}>
-              {heatEntry.grade}
-            </span>
-          ) : null;
-        })()}
-      </div>
-      )}
-    </ChartTooltip>
-  );
+  const lastError = props.errors.size > 0 && props.loading.size === 0
+    ? [...props.errors.values()].at(-1)
+    : null;
 
   // ─── Render ────────────────────────────────────────────
 
-  // Standalone fullscreen mode (e.g. /graph page) - no modal, no inline card
+  // Standalone fullscreen mode (e.g. /graph page)
   if (props.alwaysFullscreen) {
     return (
       <div className="flex flex-col h-full">
         <div className="pt-4 px-4 space-y-2 shrink-0">
-          <GraphToolbar
-            {...toolbarProps}
-            onZoomIn={() => zoomBy(1.25)}
-            onZoomOut={() => zoomBy(1 / 1.25)}
-            onFitView={handleFitView}
-          />
+          <GraphToolbar {...toolbarProps} {...zoomProps} />
         </div>
-        <div className="flex-1 min-h-0 relative px-4 pb-4 flex" style={{ touchAction: "none" }}>
-          <div className="flex-1 min-w-0 relative">
-            {legend}
-            <div ref={scrollRef} className="overflow-hidden h-full" style={{ touchAction: "none" }}>
-              <ParentSize debounceTime={100}>
-                {({ width, height: parentH }) => {
-                  const adjustedWidth = showSidebar ? Math.max(width - SIDEBAR_WIDTH, 200) : width;
-                  return adjustedWidth > 0 ? (
-                    <GraphCanvas
-                      {...fullscreenCanvasProps}
-                      containerWidth={adjustedWidth}
-                      containerHeight={parentH}
-                      isFullscreen
-                    />
-                  ) : null;
-                }}
-              </ParentSize>
-            </div>
-            {tooltipContent}
-          </div>
-          {renderSidebar("af-")}
-        </div>
-        {props.errors.size > 0 && props.loading.size === 0 && (
-          <div className="text-xs text-severity-medium/80 px-4 pb-2">
-            {[...props.errors.values()].at(-1)}
-          </div>
-        )}
+        <GraphViewport
+          canvasProps={canvasProps} viewTransform={viewTransform} onViewTransformChange={setViewTransform}
+          isFullscreen showSidebar={showSidebar} scrollRef={scrollRef}
+          legend={legend} tooltipContent={tooltipContent} sidebar={renderSidebar("af-")}
+          outerStyle={{ touchAction: "none" }}
+        />
+        {lastError && <div className="text-xs text-severity-medium/80 px-4 pb-2">{lastError}</div>}
       </div>
     );
   }
@@ -621,37 +325,21 @@ export function GraphExplorer(props: GraphExplorerProps) {
   return (
     <>
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
         className="relative rounded-xl border border-card-border bg-surface-inset p-4 space-y-3"
       >
         <GraphToolbar {...toolbarProps} onExpandFullscreen={handleExpandFullscreen} />
 
-        {/* Hide inline graph when fullscreen is active to avoid double tooltip */}
         {!isExpanded && (
           <div className="relative flex overflow-hidden rounded-lg">
-            {/* Graph area (shrinks when sidebar is open) */}
-            <div className="flex-1 min-w-0 relative">
-              {legend}
-              <div ref={scrollRef} className="overflow-auto max-h-[900px] -mx-4 px-4">
-                <ParentSize debounceTime={100}>
-                  {({ width }) => {
-                    const adjustedWidth = showSidebar ? Math.max(width - SIDEBAR_WIDTH, 200) : width;
-                    return adjustedWidth > 0 ? (
-                      <GraphCanvas {...canvasProps} containerWidth={adjustedWidth} />
-                    ) : null;
-                  }}
-                </ParentSize>
-              </div>
-              {tooltipContent}
-            </div>
-            {/* Sidebar: expanded or collapsed tab */}
-            {renderSidebar("")}
+            <GraphViewport
+              canvasProps={canvasProps} showSidebar={showSidebar} scrollRef={scrollRef}
+              legend={legend} tooltipContent={tooltipContent} sidebar={renderSidebar("")}
+              scrollClassName="overflow-auto max-h-[900px] -mx-4 px-4"
+            />
           </div>
         )}
 
-        {/* Capacity warning */}
         {props.nodeCount >= props.maxNodes && (
           <div className="text-xs text-severity-medium bg-severity-medium/10 border border-severity-medium/20 rounded-lg px-3 py-1.5">
             {t("graphExplorer.maxNodesReached", {
@@ -660,32 +348,20 @@ export function GraphExplorer(props: GraphExplorerProps) {
             })}
           </div>
         )}
-
-        {/* Loading indicators */}
         {props.loading.size > 0 && (
-          <div className="text-xs text-muted animate-pulse">
-            {t("graphExplorer.fetching", { defaultValue: "Fetching transactions..." })}
-          </div>
+          <div className="text-xs text-muted animate-pulse">{t("graphExplorer.fetching", { defaultValue: "Fetching transactions..." })}</div>
         )}
-
-        {/* Ephemeral error messages */}
-        {props.errors.size > 0 && props.loading.size === 0 && (
-          <div className="text-xs text-severity-medium/80">
-            {[...props.errors.values()].at(-1)}
-          </div>
-        )}
+        {lastError && <div className="text-xs text-severity-medium/80">{lastError}</div>}
       </motion.div>
 
       {/* Fullscreen modal overlay */}
       {isExpanded && (
         <div
-          role="dialog"
-          aria-modal="true"
+          role="dialog" aria-modal="true"
           aria-label={t("graphExplorer.fullscreenLabel", { defaultValue: "Transaction graph fullscreen" })}
           className="fixed inset-0 z-50 bg-card-bg/80 backdrop-blur-sm flex flex-col"
           onClick={(e) => { if (e.target === e.currentTarget) collapseFullscreen(); }}
         >
-          {/* Close button */}
           <button
             onClick={collapseFullscreen}
             className="fixed top-3 right-3 z-[60] text-muted hover:text-foreground transition-colors p-2 rounded-lg bg-card-bg/80 hover:bg-surface-inset backdrop-blur-sm cursor-pointer"
@@ -693,43 +369,15 @@ export function GraphExplorer(props: GraphExplorerProps) {
           >
             <CloseIcon />
           </button>
-
-          {/* Fullscreen header */}
           <div className="p-4 pr-12 space-y-2 shrink-0">
-            <GraphToolbar
-              {...toolbarProps}
-              onSearch={undefined}
-              onLoadSavedGraph={undefined}
-              onZoomIn={() => zoomBy(1.25)}
-              onZoomOut={() => zoomBy(1 / 1.25)}
-              onFitView={handleFitView}
-            />
+            <GraphToolbar {...toolbarProps} onSearch={undefined} onLoadSavedGraph={undefined} {...zoomProps} />
           </div>
-
-          {/* Fullscreen graph area */}
-          <div className="flex-1 min-h-0 relative px-4 pb-4 flex" style={{ touchAction: "none" }}>
-            <div className="flex-1 min-w-0 relative">
-              {legend}
-              <div ref={scrollRef} className="overflow-hidden h-full" style={{ touchAction: "none" }}>
-                <ParentSize debounceTime={100}>
-                  {({ width, height: parentH }) => {
-                    const adjustedWidth = showSidebar ? Math.max(width - SIDEBAR_WIDTH, 200) : width;
-                    return adjustedWidth > 0 ? (
-                      <GraphCanvas
-                        {...fullscreenCanvasProps}
-                        containerWidth={adjustedWidth}
-                        containerHeight={parentH}
-                        isFullscreen
-                      />
-                    ) : null;
-                  }}
-                </ParentSize>
-              </div>
-              {tooltipContent}
-            </div>
-            {/* Fullscreen sidebar: expanded or collapsed tab */}
-            {renderSidebar("fs-")}
-          </div>
+          <GraphViewport
+            canvasProps={canvasProps} viewTransform={viewTransform} onViewTransformChange={setViewTransform}
+            isFullscreen showSidebar={showSidebar} scrollRef={scrollRef}
+            legend={legend} tooltipContent={tooltipContent} sidebar={renderSidebar("fs-")}
+            outerStyle={{ touchAction: "none" }}
+          />
         </div>
       )}
     </>

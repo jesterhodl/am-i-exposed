@@ -6,7 +6,8 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "@/hooks/useTheme";
 import { formatSats, calcFeeRate } from "@/lib/format";
 import { useFullscreen } from "@/hooks/useFullscreen";
-import { FlowChart, MAX_DISPLAY } from "./FlowChart";
+import { FlowChart } from "./FlowChart";
+import { MAX_DISPLAY } from "./buildFlowGraph";
 import type { TxFlowDiagramProps } from "./FlowChart";
 
 export type { TxFlowDiagramProps };

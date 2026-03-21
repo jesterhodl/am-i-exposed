@@ -2,15 +2,10 @@
 
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { SVG_COLORS } from "../shared/svgConstants";
-import { formatSats } from "@/lib/format";
-import { truncateId } from "@/lib/constants";
 import { isCoinJoinTx } from "@/lib/analysis/heuristics/coinjoin";
-import { matchEntitySync } from "@/lib/analysis/entity-filter/entity-match";
-import { getScriptTypeColor } from "./scriptStyles";
 import { probColor } from "../shared/linkabilityColors";
 import { analyzeChangeDetection } from "@/lib/analysis/heuristics/change-detection";
-import { CopyButton } from "@/components/ui/CopyButton";
+import { InputRow, OutputRow } from "./OutputRow";
 import type { MempoolTransaction, MempoolOutspend } from "@/lib/api/types";
 import type { BoltzmannWorkerResult } from "@/lib/analysis/boltzmann-pool";
 
@@ -55,7 +50,6 @@ export function IOTab({
   const [selectedInputIdx, setSelectedInputIdx] = useState<number | null>(null);
 
   // Change detection auto-suggestion
-  // Collect all heuristic-suggested change output indices
   const suggestedChangeIndices = useMemo(() => {
     const indices = new Set<number>();
     const result = analyzeChangeDetection(tx);
@@ -79,21 +73,16 @@ export function IOTab({
 
   // Count expandable inputs/outputs for bulk expand
   const expandableInputs = useMemo(() => {
-    return tx.vin.reduce((acc, v, i) => {
-      if (!v.is_coinbase) acc.push(i);
-      return acc;
-    }, [] as number[]);
+    return tx.vin.flatMap((v, i) => (v.is_coinbase ? [] : [i]));
   }, [tx]);
 
   const expandableOutputs = useMemo(() => {
-    return tx.vout.reduce((acc, v, i) => {
-      if (v.scriptpubkey_type === "op_return" || v.value === 0) return acc;
-      // Skip unspent outputs (no spending tx to expand into)
+    return tx.vout.flatMap((v, i) => {
+      if (v.scriptpubkey_type === "op_return" || v.value === 0) return [];
       const os = outspends?.[i];
-      if (os && os.spent === false) return acc;
-      acc.push(i);
-      return acc;
-    }, [] as number[]);
+      if (os && os.spent === false) return [];
+      return [i];
+    });
   }, [tx, outspends]);
 
   const nonCoinbaseInputCount = tx.vin.filter((v) => !v.is_coinbase).length;
@@ -169,75 +158,30 @@ export function IOTab({
           )}
         </div>
         <div className="space-y-0.5">
-          {tx.vin.map((vin, i) => {
-            const addr = vin.is_coinbase ? t("graph.coinbase", { defaultValue: "coinbase" }) : (vin.prevout?.scriptpubkey_address ?? t("graph.unknown", { defaultValue: "unknown" }));
-            const value = vin.prevout?.value ?? 0;
-            const scriptType = vin.prevout?.scriptpubkey_type ?? "unknown";
-            const entity = !vin.is_coinbase && vin.prevout?.scriptpubkey_address
-              ? matchEntitySync(vin.prevout.scriptpubkey_address) : null;
-
-            return (
-              <div key={i} className="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-foreground/5 group">
-                <span
-                  className="w-1.5 h-4 rounded-sm shrink-0"
-                  style={{ background: getScriptTypeColor(scriptType), opacity: 0.7 }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <span className="font-mono text-xs text-foreground/70 truncate">
-                      {vin.is_coinbase ? t("graph.coinbase", { defaultValue: "coinbase" }) : truncateId(addr, 6)}
-                    </span>
-                    {!vin.is_coinbase && addr !== "unknown" && <CopyButton text={addr} variant="inline" />}
-                  </div>
-                  {entity && (
-                    <div className="text-xs text-muted truncate">
-                      <span style={{ color: SVG_COLORS.high }}>{entity.entityName}</span>
-                      {entity.ofac && <span className="text-severity-critical ml-1">OFAC</span>}
-                    </div>
-                  )}
-                </div>
-                <span className="text-xs text-bitcoin/80 shrink-0 tabular-nums">{formatSats(value)}</span>
-                {/* Linkability indicator - clickable to show per-output breakdown */}
-                {mat && !vin.is_coinbase && (() => {
-                  let maxP = 0;
-                  for (let oi = 0; oi < mat.length; oi++) {
-                    if (mat[oi]?.[i] !== undefined && mat[oi][i] > maxP) maxP = mat[oi][i];
-                  }
-                  if (maxP <= 0) return null;
-                  const isDet = detLinks?.some(([, inIdx]) => inIdx === i);
-                  const isSelected = selectedInputIdx === i;
-                  return (
-                    <button
-                      className={`shrink-0 w-2.5 h-2.5 rounded-full cursor-pointer transition-all ${isSelected ? "ring-2 ring-foreground/40 scale-125" : ""}`}
-                      style={{ backgroundColor: probColor(maxP), opacity: isDet ? 1 : 0.7 }}
-                      title={`${Math.round(maxP * 100)}% max linkability${isDet ? " (deterministic)" : ""} - click to see per-output breakdown`}
-                      onClick={(e) => { e.stopPropagation(); setSelectedInputIdx(isSelected ? null : i); }}
-                    />
-                  );
-                })()}
-                {onExpandInput && !vin.is_coinbase && (
-                  <button
-                    onClick={() => onExpandInput(tx.txid, i)}
-                    className="opacity-0 group-hover:opacity-100 text-muted/60 hover:text-foreground transition-all cursor-pointer p-0.5"
-                    title={t("graph.expandInGraph", { defaultValue: "Expand in graph" })}
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-                  </button>
-                )}
-              </div>
-            );
-          })}
+          {tx.vin.map((vin, i) => (
+            <InputRow
+              key={i}
+              vin={vin}
+              index={i}
+              txid={tx.txid}
+              mat={mat}
+              detLinks={detLinks}
+              selectedInputIdx={selectedInputIdx}
+              onSelectInput={setSelectedInputIdx}
+              onExpandInput={onExpandInput}
+            />
+          ))}
         </div>
       </div>
 
-      {/* Per-input linkability breakdown (shown when an input is selected) */}
+      {/* Per-input linkability breakdown */}
       {selectedInputIdx !== null && mat && (
         <div className="mx-1 p-1.5 rounded bg-foreground/5 border border-card-border">
           <div className="text-xs text-muted mb-1">
             {t("graph.ioTab.linkabilityBreakdown", { idx: selectedInputIdx, defaultValue: "Input #{{idx}} linkability to each output:" })}
           </div>
           <div className="space-y-0.5">
-            {tx.vout.map((vout, oi) => {
+            {tx.vout.map((_vout, oi) => {
               const prob = mat[oi]?.[selectedInputIdx] ?? 0;
               const isDet = detLinks?.some(([o, inp]) => o === oi && inp === selectedInputIdx);
               return (
@@ -264,11 +208,9 @@ export function IOTab({
         <div className="flex items-center justify-between px-1 mb-1">
           <span className="text-xs font-medium text-muted">{t("graph.ioTab.outputsCount", { count: tx.vout.length, defaultValue: "Outputs ({{count}})" })}</span>
           <div className="flex items-center gap-1.5">
-            {/* Auto-trace from identified change output (section-level action) */}
             {onAutoTrace && !autoTracing && (
               <button
                 onClick={() => {
-                  // Find the first change-marked output, or first expandable output
                   const changeIdx = tx.vout.findIndex((_, i) => changeOutputs.has(`${tx.txid}:${i}`));
                   const targetIdx = changeIdx >= 0 ? changeIdx : expandableOutputs[0];
                   if (targetIdx !== undefined) onAutoTrace(tx.txid, targetIdx);
@@ -279,7 +221,6 @@ export function IOTab({
                 {t("graph.ioTab.trace", { defaultValue: "Trace" })}
               </button>
             )}
-            {/* Linkability trace (section-level action) */}
             {onAutoTraceLinkability && !autoTracing && (
               <button
                 onClick={() => {
@@ -305,110 +246,24 @@ export function IOTab({
           </div>
         </div>
         <div className="space-y-0.5">
-          {tx.vout.map((vout, i) => {
-            const addr = vout.scriptpubkey_address ?? (vout.scriptpubkey_type === "op_return" ? t("graph.opReturn", { defaultValue: "OP_RETURN" }) : t("graph.unknown", { defaultValue: "unknown" }));
-            const os = outspends?.[i];
-            const isChange = changeOutputs.has(`${tx.txid}:${i}`);
-            const entity = vout.scriptpubkey_address ? matchEntitySync(vout.scriptpubkey_address) : null;
-
-            return (
-              <div
-                key={i}
-                className={`flex items-center gap-1.5 px-1 py-1 rounded hover:bg-foreground/5 group ${
-                  isChange ? "ring-1 ring-amber-500/30 bg-amber-500/5" : ""
-                }`}
-              >
-                <span
-                  className="w-1.5 h-4 rounded-sm shrink-0"
-                  style={{ background: getScriptTypeColor(vout.scriptpubkey_type), opacity: 0.7 }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <span className="font-mono text-xs text-foreground/70 truncate">{truncateId(addr, 6)}</span>
-                    {vout.scriptpubkey_address && <CopyButton text={vout.scriptpubkey_address} variant="inline" />}
-                  </div>
-                  {entity && (
-                    <div className="text-xs text-muted truncate">
-                      <span style={{ color: SVG_COLORS.high }}>{entity.entityName}</span>
-                      {entity.ofac && <span className="text-severity-critical ml-1">OFAC</span>}
-                    </div>
-                  )}
-                </div>
-                {/* Spend status */}
-                <span className="shrink-0" title={os?.spent ? t("graph.ioTab.spent", { defaultValue: "Spent" }) : os?.spent === false ? t("graph.ioTab.unspent", { defaultValue: "Unspent" }) : t("graph.ioTab.unknown", { defaultValue: "Unknown" })}>
-                  {os?.spent === true && (
-                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={SVG_COLORS.muted} strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
-                  )}
-                  {os?.spent === false && (
-                    <svg width="8" height="8" viewBox="0 0 16 16"><polygon points="8,1 15,8 8,15 1,8" fill="none" stroke={getScriptTypeColor(vout.scriptpubkey_type)} strokeWidth="2" /></svg>
-                  )}
-                </span>
-                <span className="text-xs text-bitcoin/80 shrink-0 tabular-nums">{formatSats(vout.value)}</span>
-                {/* Change badge */}
-                {isChange && (
-                  <span className="shrink-0 text-[9px] font-semibold px-1 py-px rounded bg-amber-500/20 text-amber-500 leading-tight">
-                    {t("graph.change", { defaultValue: "change" })}
-                  </span>
-                )}
-                {/* Per-output linkability from selected input */}
-                {selectedInputIdx !== null && mat && (() => {
-                  const prob = mat[i]?.[selectedInputIdx] ?? 0;
-                  if (prob <= 0) return null;
-                  return (
-                    <span
-                      className="shrink-0 w-2 h-2 rounded-full"
-                      style={{ backgroundColor: probColor(prob) }}
-                      title={t("graph.ioTab.linkabilityFromInput", { prob: Math.round(prob * 100), idx: selectedInputIdx, defaultValue: "{{prob}}% from input #{{idx}}" })}
-                    />
-                  );
-                })()}
-                {/* Change toggle + auto-suggestion */}
-                <button
-                  onClick={() => onToggleChange(tx.txid, i)}
-                  className={`shrink-0 w-3.5 h-3.5 rounded-sm border cursor-pointer transition-colors relative ${
-                    isChange
-                      ? "bg-amber-500/40 border-amber-500/60"
-                      : "border-card-border hover:border-muted"
-                  }`}
-                  title={isChange ? t("graph.ioTab.unmarkAsChange", { defaultValue: "Unmark as change" }) : (suggestedChangeIndices.has(i) ? t("graph.ioTab.suggestedChange", { defaultValue: "Suggested change output - click to mark" }) : t("graph.ioTab.markAsChange", { defaultValue: "Mark as change" }))}
-                >
-                  {/* Suggestion pulse dot */}
-                  {!isChange && suggestedChangeIndices.has(i) && (
-                    <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  )}
-                </button>
-                {onExpandOutput && vout.scriptpubkey_type !== "op_return" && vout.value > 0 && os?.spent !== false && (
-                  <button
-                    onClick={() => onExpandOutput(tx.txid, i)}
-                    className="opacity-0 group-hover:opacity-100 text-muted/60 hover:text-foreground transition-all cursor-pointer p-0.5"
-                    title={t("graph.expandInGraph", { defaultValue: "Expand in graph" })}
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-                  </button>
-                )}
-                {/* Per-output auto-trace */}
-                {onAutoTrace && !autoTracing && vout.scriptpubkey_type !== "op_return" && vout.value > 0 && os?.spent !== false && (
-                  <button
-                    onClick={() => onAutoTrace(tx.txid, i)}
-                    className="opacity-0 group-hover:opacity-100 text-bitcoin/50 hover:text-bitcoin transition-all cursor-pointer p-0.5"
-                    title={t("graph.ioTab.autoTraceFromOutput", { defaultValue: "Auto-trace from this output" })}
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M13 5l7 7-7 7" /><path d="M5 5l7 7-7 7" /></svg>
-                  </button>
-                )}
-                {/* Per-output linkability trace */}
-                {onAutoTraceLinkability && !autoTracing && vout.scriptpubkey_type !== "op_return" && vout.value > 0 && os?.spent !== false && (
-                  <button
-                    onClick={() => onAutoTraceLinkability(tx.txid, i)}
-                    className="opacity-0 group-hover:opacity-100 text-severity-low/60 hover:text-severity-low transition-all cursor-pointer p-0.5"
-                    title={t("graph.ioTab.linkabilityTraceFromOutput", { defaultValue: "Linkability trace from this output" })}
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07" /></svg>
-                  </button>
-                )}
-              </div>
-            );
-          })}
+          {tx.vout.map((vout, i) => (
+            <OutputRow
+              key={i}
+              vout={vout}
+              index={i}
+              txid={tx.txid}
+              outspend={outspends?.[i]}
+              isChange={changeOutputs.has(`${tx.txid}:${i}`)}
+              suggestedChange={suggestedChangeIndices.has(i)}
+              selectedInputIdx={selectedInputIdx}
+              mat={mat}
+              onToggleChange={onToggleChange}
+              onExpandOutput={onExpandOutput}
+              onAutoTrace={onAutoTrace}
+              onAutoTraceLinkability={onAutoTraceLinkability}
+              autoTracing={autoTracing}
+            />
+          ))}
         </div>
       </div>
     </div>

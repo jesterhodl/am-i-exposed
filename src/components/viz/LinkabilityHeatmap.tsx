@@ -10,7 +10,17 @@ import { useBoltzmann } from "@/hooks/useBoltzmann";
 import type { BoltzmannWorkerResult } from "@/lib/analysis/boltzmann-pool";
 import { formatSats } from "@/lib/format";
 import { ChartTooltip, useChartTooltip } from "./shared/ChartTooltip";
-import { getColorStops, probColor, cellGlow, probTextColor, probLabel } from "./shared/linkabilityColors";
+import { getColorStops, probColor, probLabel } from "./shared/linkabilityColors";
+import { truncAddr, truncAddrSuffix } from "./shared/addressFormat";
+import { formatElapsed } from "./shared/heatmapHelpers";
+import type { HeatmapTooltipData } from "./shared/heatmapHelpers";
+import { HeatmapCell } from "./shared/HeatmapCell";
+import {
+  HeatmapIdleBlock,
+  HeatmapProgressBlock,
+  HeatmapErrorBlock,
+  HeatmapUnsupportedBlock,
+} from "./shared/HeatmapStatusBlocks";
 import { isCoinJoinTx } from "@/lib/analysis/heuristics/coinjoin";
 import type { MempoolTransaction } from "@/lib/api/types";
 
@@ -18,32 +28,6 @@ interface Props {
   tx: MempoolTransaction;
   /** Pre-computed Boltzmann result from the analysis pipeline. */
   boltzmannResult?: BoltzmannWorkerResult | null;
-}
-
-/** Truncate address for row labels (prefix + suffix). */
-function truncAddr(addr: string | undefined, n = 5): string {
-  if (!addr) return "?";
-  if (addr.length <= n * 2 + 2) return addr;
-  return `${addr.slice(0, n)}\u2026${addr.slice(-n)}`;
-}
-
-/** Truncate address for column headers (suffix only - bc1q prefix is shared). */
-function truncAddrSuffix(addr: string | undefined, n = 5): string {
-  if (!addr) return "?";
-  if (addr.length <= n + 2) return addr;
-  return `\u2026${addr.slice(-n)}`;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Tooltip data                                                       */
-/* ------------------------------------------------------------------ */
-
-interface TooltipData {
-  outAddr: string | undefined;
-  inAddr: string | undefined;
-  prob: number;
-  count: number;
-  total: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -63,7 +47,7 @@ export function LinkabilityHeatmap({ tx, boltzmannResult: precomputed }: Props) 
   const {
     tooltipOpen, tooltipData, tooltipLeft, tooltipTop,
     showTooltip, hideTooltip,
-  } = useChartTooltip<TooltipData>();
+  } = useChartTooltip<HeatmapTooltipData>();
 
   const isCoinbase = tx.vin.some(v => v.is_coinbase);
 
@@ -175,78 +159,20 @@ export function LinkabilityHeatmap({ tx, boltzmannResult: precomputed }: Props) 
       </div>
 
       <div className="mt-4 space-y-4">
-          {/* Idle - manual compute button */}
           {state.status === "idle" && !autoComputed && (
-            <div className="text-center py-6 space-y-3">
-              <p className="text-xs text-muted">
-                {t("boltzmann.largeTxInfo", {
-                  defaultValue: "This transaction has {{nIn}} inputs and {{nOut}} outputs. Computation may take a long time.",
-                  nIn,
-                  nOut,
-                })}
-              </p>
-              <button
-                onClick={compute}
-                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-bitcoin border border-bitcoin/30 rounded-lg hover:bg-bitcoin/10 transition-colors cursor-pointer"
-              >
-                <Grid3X3 size={14} />
-                {t("boltzmann.compute", { defaultValue: "Compute Boltzmann LPM" })}
-              </button>
-            </div>
+            <HeatmapIdleBlock nIn={nIn} nOut={nOut} compute={compute} />
           )}
 
-          {/* Loading / Computing with progress */}
           {(state.status === "loading" || state.status === "computing") && (
-            <div className="text-center py-8 space-y-3">
-              {/* Progress bar */}
-              <div className="mx-auto max-w-xs">
-                <div className="h-1.5 bg-surface-inset rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-bitcoin rounded-full"
-                    initial={{ width: "0%" }}
-                    animate={{ width: `${Math.round((state.progress?.fraction ?? 0) * 100)}%` }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                  />
-                </div>
-              </div>
-
-              {/* Percentage + time estimate */}
-              <p className="text-xs text-muted">
-                {state.progress && state.progress.fraction > 0
-                  ? `${Math.round(state.progress.fraction * 100)}%`
-                  : t("boltzmann.computing", { defaultValue: "Computing link probabilities..." })}
-                {state.progress?.estimatedRemainingMs != null && state.progress.estimatedRemainingMs > 0 && (() => {
-                  const secs = Math.ceil(state.progress.estimatedRemainingMs / 1000);
-                  const mins = Math.floor(secs / 60);
-                  const s = secs % 60;
-                  const timeStr = mins > 0 ? `${mins}m ${s}s` : `${secs}s`;
-                  return <span className="ml-2 text-muted/60">~{timeStr}</span>;
-                })()}
-              </p>
-            </div>
+            <HeatmapProgressBlock progress={state.progress} />
           )}
 
-          {/* Error */}
           {state.status === "error" && (
-            <div className="text-center py-6 space-y-3">
-              <p className="text-xs text-severity-critical">{state.error}</p>
-              <button
-                onClick={compute}
-                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-muted border border-card-border rounded-lg hover:text-foreground transition-colors cursor-pointer"
-              >
-                {t("boltzmann.retry", { defaultValue: "Retry" })}
-              </button>
-            </div>
+            <HeatmapErrorBlock error={state.error ?? undefined} compute={compute} />
           )}
 
-          {/* Unsupported */}
-          {state.status === "unsupported" && (
-            <p className="text-xs text-muted text-center py-4">
-              {t("boltzmann.unsupported", { defaultValue: "Web Workers are required for Boltzmann analysis." })}
-            </p>
-          )}
+          {state.status === "unsupported" && <HeatmapUnsupportedBlock />}
 
-          {/* Complete - results */}
           {state.status === "complete" && state.result && (() => {
             const result = state.result;
             const showEfficiency = isCoinJoinTx(tx) && result.efficiency > 0 && !result.timedOut;
@@ -258,66 +184,27 @@ export function LinkabilityHeatmap({ tx, boltzmannResult: precomputed }: Props) 
               <>
                 {/* Stats pills */}
                 <div className="flex flex-wrap gap-2">
-                  <motion.span
-                    initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="inline-flex items-center gap-1.5 bg-surface-inset rounded-full px-2.5 py-1 text-xs text-muted"
-                  >
+                  <motion.span initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="inline-flex items-center gap-1.5 bg-surface-inset rounded-full px-2.5 py-1 text-xs text-muted">
                     <Hash size={11} />
-                    {result.timedOut ? `${result.nbCmbn.toLocaleString()}+ interpretations (partial)` : t("boltzmann.interpretations", {
-                      defaultValue: "{{num}} interpretations",
-                      num: result.nbCmbn.toLocaleString(),
-                    })}
+                    {result.timedOut ? `${result.nbCmbn.toLocaleString()}+ interpretations (partial)` : t("boltzmann.interpretations", { defaultValue: "{{num}} interpretations", num: result.nbCmbn.toLocaleString() })}
                   </motion.span>
-                  <motion.span
-                    initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.05 }}
-                    className="inline-flex items-center gap-1.5 bg-surface-inset rounded-full px-2.5 py-1 text-xs text-muted"
-                    title={isApprox ? "Upper bound. True entropy may be slightly lower due to structural approximations." : undefined}
-                  >
+                  <motion.span initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }} className="inline-flex items-center gap-1.5 bg-surface-inset rounded-full px-2.5 py-1 text-xs text-muted" title={isApprox ? "Upper bound. True entropy may be slightly lower due to structural approximations." : undefined}>
                     <Grid3X3 size={11} />
-                    {result.timedOut
-                      ? `${result.entropy.toFixed(2)}+ bits entropy (partial)`
-                      : `${result.entropy.toFixed(2)} bits entropy${boundLabel}`}
+                    {result.timedOut ? `${result.entropy.toFixed(2)}+ bits entropy (partial)` : `${result.entropy.toFixed(2)} bits entropy${boundLabel}`}
                   </motion.span>
-                  <motion.span
-                    initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.075 }}
-                    className="inline-flex items-center gap-1.5 bg-surface-inset rounded-full px-2.5 py-1 text-xs text-muted"
-                    title={isApprox ? "Upper bound. Per-UTXO entropy averaged across the transaction." : undefined}
-                  >
+                  <motion.span initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.075 }} className="inline-flex items-center gap-1.5 bg-surface-inset rounded-full px-2.5 py-1 text-xs text-muted" title={isApprox ? "Upper bound. Per-UTXO entropy averaged across the transaction." : undefined}>
                     <Grid3X3 size={11} />
-                    {result.timedOut
-                      ? `${(result.entropy / (nIn + nOut)).toFixed(2)}+ bits/UTXO (partial)`
-                      : `${(result.entropy / (nIn + nOut)).toFixed(2)} bits/UTXO${boundLabel}`}
+                    {result.timedOut ? `${(result.entropy / (nIn + nOut)).toFixed(2)}+ bits/UTXO (partial)` : `${(result.entropy / (nIn + nOut)).toFixed(2)} bits/UTXO${boundLabel}`}
                   </motion.span>
                   {result.deterministicLinks.length > 0 && (
-                    <motion.span
-                      initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.15 }}
-                      className="inline-flex items-center gap-1.5 bg-severity-critical/10 text-severity-critical border border-severity-critical/20 rounded-full px-2.5 py-1 text-xs"
-                    >
+                    <motion.span initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }} className="inline-flex items-center gap-1.5 bg-severity-critical/10 text-severity-critical border border-severity-critical/20 rounded-full px-2.5 py-1 text-xs">
                       <Link size={11} />
-                      {t("boltzmann.deterministicLinks", {
-                        defaultValue: "{{num}} deterministic links",
-                        num: result.deterministicLinks.length,
-                      })}
+                      {t("boltzmann.deterministicLinks", { defaultValue: "{{num}} deterministic links", num: result.deterministicLinks.length })}
                     </motion.span>
                   )}
-                  <motion.span
-                    initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.2 }}
-                    className="inline-flex items-center gap-1.5 bg-surface-inset rounded-full px-2.5 py-1 text-xs text-muted"
-                  >
+                  <motion.span initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }} className="inline-flex items-center gap-1.5 bg-surface-inset rounded-full px-2.5 py-1 text-xs text-muted">
                     <Clock size={11} />
-                    {result.elapsedMs >= 1000
-                      ? `${(result.elapsedMs / 1000).toFixed(1)}s`
-                      : `${result.elapsedMs}ms`}
+                    {formatElapsed(result.elapsedMs)}
                   </motion.span>
                 </div>
 
@@ -325,125 +212,58 @@ export function LinkabilityHeatmap({ tx, boltzmannResult: precomputed }: Props) 
                 {result.timedOut && (
                   <div className="flex items-center gap-2 text-xs text-severity-medium bg-severity-medium/10 rounded-lg px-3 py-2">
                     <AlertTriangle size={14} />
-                    {t("boltzmann.timedOut", {
-                      defaultValue: "Computation timed out. Only deterministic links (100%) and zero-probability cells are reliable. Other cells are shown as N/A.",
-                    })}
+                    {t("boltzmann.timedOut", { defaultValue: "Computation timed out. Only deterministic links (100%) and zero-probability cells are reliable. Other cells are shown as N/A." })}
                   </div>
                 )}
 
                 {/* Heat map grid */}
                 <div className="relative -mx-2">
-                  <div
-                    ref={gridRef}
-                    className="bg-surface-inset/40 rounded-lg border border-card-border/40 overflow-auto p-3"
-                    style={{ maxHeight: "70vh" }}
-                  >
-                    <div
-                      className="grid gap-px"
-                      style={{
-                        gridTemplateColumns: `minmax(90px, 120px) repeat(${cappedOutputs.length}, minmax(56px, 1fr))`,
-                        gridTemplateRows: `auto repeat(${cappedInputs.length}, minmax(44px, auto))`,
-                      }}
-                    >
+                  <div ref={gridRef} className="bg-surface-inset/40 rounded-lg border border-card-border/40 overflow-auto p-3" style={{ maxHeight: "70vh" }}>
+                    <div className="grid gap-px" style={{ gridTemplateColumns: `minmax(90px, 120px) repeat(${cappedOutputs.length}, minmax(56px, 1fr))`, gridTemplateRows: `auto repeat(${cappedInputs.length}, minmax(44px, auto))` }}>
                       {/* Top-left corner */}
                       <div className="text-[10px] text-muted/70 flex items-end justify-end pr-1 pb-0.5">
                         {t("boltzmann.gridLabel", { defaultValue: "In \\ Out" })}
                       </div>
 
-                      {/* Column headers - outputs (capped) */}
-                      {cappedOutputs.map((out, o) => {
-                        const isColHovered = hoveredCell?.col === o;
-                        return (
-                          <div
-                            key={`h-${o}`}
-                            className="text-center px-1 pb-1 border-b border-card-border/40"
-                          >
-                            <button
-                              onClick={() => out.address && (window.location.hash = `#addr=${out.address}`)}
-                              className={`text-[11px] font-mono transition-colors duration-150 block w-full hover:text-bitcoin cursor-pointer whitespace-nowrap ${
-                                isColHovered ? "text-foreground" : "text-muted"
-                              }`}
-                              title={out.address}
-                            >
-                              {truncAddrSuffix(out.address)}
-                            </button>
-                            <div className="text-[10px] text-muted/60">
-                              {formatSats(out.value)}
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {/* Column headers */}
+                      {cappedOutputs.map((out, o) => (
+                        <div key={`h-${o}`} className="text-center px-1 pb-1 border-b border-card-border/40">
+                          <button onClick={() => out.address && (window.location.hash = `#addr=${out.address}`)} className={`text-[11px] font-mono transition-colors duration-150 block w-full hover:text-bitcoin cursor-pointer whitespace-nowrap ${hoveredCell?.col === o ? "text-foreground" : "text-muted"}`} title={out.address}>
+                            {truncAddrSuffix(out.address)}
+                          </button>
+                          <div className="text-[10px] text-muted/60">{formatSats(out.value)}</div>
+                        </div>
+                      ))}
 
-                      {/* Rows - one per input (capped) */}
+                      {/* Rows */}
                       {cappedInputs.map((inp, i) => (
                         <Fragment key={`row-${i}`}>
-                          {/* Row label */}
                           <div className="flex items-center justify-end pr-2 gap-1">
                             <div className="text-right">
-                              <button
-                                onClick={() => inp.address && (window.location.hash = `#addr=${inp.address}`)}
-                                className={`text-[11px] font-mono transition-colors duration-150 block ml-auto hover:text-bitcoin cursor-pointer whitespace-nowrap ${
-                                  hoveredCell?.row === i ? "text-foreground" : "text-muted"
-                                }`}
-                                title={inp.address}
-                              >
+                              <button onClick={() => inp.address && (window.location.hash = `#addr=${inp.address}`)} className={`text-[11px] font-mono transition-colors duration-150 block ml-auto hover:text-bitcoin cursor-pointer whitespace-nowrap ${hoveredCell?.row === i ? "text-foreground" : "text-muted"}`} title={inp.address}>
                                 {truncAddr(inp.address)}
                               </button>
-                              <div className="text-[10px] text-muted/60">
-                                {formatSats(inp.value)}
-                              </div>
+                              <div className="text-[10px] text-muted/60">{formatSats(inp.value)}</div>
                             </div>
                           </div>
-
-                          {/* Cells - matrix is [out][in], so access as [col][row] */}
-                          {cappedOutputs.map((_out, o) => {
-                            const prob = result.matLnkProbabilities[o]?.[i] ?? 0;
-                            const count = result.matLnkCombinations[o]?.[i] ?? 0;
-                            const isDeterministic = prob >= 1.0;
-                            // When timed out, only deterministic (100%) and zero (0%) cells are reliable
-                            const isUnreliable = result.timedOut && prob > 0 && prob < 1.0;
-                            const displayProb = isUnreliable ? 0 : prob;
-                            const isHovered = hoveredCell?.row === i && hoveredCell?.col === o;
-                            const inCrosshair = hoveredCell !== null
-                              && (hoveredCell.row === i || hoveredCell.col === o);
-                            const dimmed = hoveredCell !== null && !inCrosshair;
-                            const color = isUnreliable ? "var(--surface-inset)" : probColor(displayProb);
-
-                            return (
-                              <motion.div
-                                key={`c-${i}-${o}`}
-                                initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.8 }}
-                                animate={{
-                                  opacity: dimmed ? 0.5 : 1,
-                                  scale: isHovered ? 1.06 : 1,
-                                }}
-                                transition={
-                                  entered || nIn + nOut > 40
-                                    ? { duration: 0.15 }
-                                    : { duration: 0.25, delay: (i + o) * 0.03 }
-                                }
-                                className={`relative flex items-center justify-center rounded-sm cursor-default ${
-                                  isDeterministic ? "ring-2 ring-red-500/70" : ""
-                                } ${isHovered ? "z-10" : ""}`}
-                                style={{
-                                  backgroundColor: color,
-                                  boxShadow: isUnreliable ? "none" : cellGlow(displayProb),
-                                }}
-                                onMouseEnter={(e) =>
-                                  handleCellHover(e, i, o, isUnreliable ? -1 : prob, count, result.nbCmbn)
-                                }
-                                onMouseLeave={handleCellLeave}
-                              >
-                                <span
-                                  className={`text-xs font-mono tabular-nums ${
-                                    isUnreliable ? "text-muted/30 italic" : probTextColor(displayProb)
-                                  }`}
-                                >
-                                  {isUnreliable ? "N/A" : prob === 0 ? "-" : `${(prob * 100).toFixed(0)}%`}
-                                </span>
-                              </motion.div>
-                            );
-                          })}
+                          {cappedOutputs.map((_out, o) => (
+                            <HeatmapCell
+                              key={`c-${i}-${o}`}
+                              row={i}
+                              col={o}
+                              prob={result.matLnkProbabilities[o]?.[i] ?? 0}
+                              count={result.matLnkCombinations[o]?.[i] ?? 0}
+                              timedOut={result.timedOut}
+                              hoveredRow={hoveredCell?.row ?? null}
+                              hoveredCol={hoveredCell?.col ?? null}
+                              entered={entered}
+                              totalPorts={nIn + nOut}
+                              prefersReducedMotion={prefersReducedMotion}
+                              nbCmbn={result.nbCmbn}
+                              onHover={handleCellHover}
+                              onLeave={handleCellLeave}
+                            />
+                          ))}
                         </Fragment>
                       ))}
                     </div>
@@ -463,14 +283,9 @@ export function LinkabilityHeatmap({ tx, boltzmannResult: precomputed }: Props) 
                             <>
                               <div className="text-sm font-semibold text-foreground">
                                 {(tooltipData.prob * 100).toFixed(1)}%
-                                <span className="text-xs font-normal text-muted ml-1.5">
-                                  ({tooltipData.count}/{tooltipData.total})
-                                </span>
+                                <span className="text-xs font-normal text-muted ml-1.5">({tooltipData.count}/{tooltipData.total})</span>
                               </div>
-                              <div
-                                className="text-[10px] font-medium"
-                                style={{ color: probColor(tooltipData.prob) }}
-                              >
+                              <div className="text-[10px] font-medium" style={{ color: probColor(tooltipData.prob) }}>
                                 {probLabel(tooltipData.prob)}
                               </div>
                             </>
@@ -480,45 +295,32 @@ export function LinkabilityHeatmap({ tx, boltzmannResult: precomputed }: Props) 
                     )}
                   </div>
 
-                  {/* Right fade + expand pill - on scroll viewport edge */}
+                  {/* Right fade + expand pill */}
                   {hasMoreCols && (
                     <>
                       <div className="absolute top-0 right-0 bottom-0 w-10 pointer-events-none rounded-r-lg" style={{ background: "linear-gradient(to right, transparent, var(--card-bg))" }} />
-                      <button
-                        onClick={() => setVisibleCols(Math.min(visibleCols + PAGE_SIZE, nOut))}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-2 py-1 rounded-full bg-surface-elevated/90 backdrop-blur-sm border border-card-border text-[10px] text-muted hover:text-foreground hover:border-muted transition-all cursor-pointer shadow-sm z-10"
-                        title={`Show more columns (${visibleCols}/${nOut})`}
-                      >
+                      <button onClick={() => setVisibleCols(Math.min(visibleCols + PAGE_SIZE, nOut))} className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-2 py-1 rounded-full bg-surface-elevated/90 backdrop-blur-sm border border-card-border text-[10px] text-muted hover:text-foreground hover:border-muted transition-all cursor-pointer shadow-sm z-10" title={`Show more columns (${visibleCols}/${nOut})`}>
                         +{Math.min(PAGE_SIZE, nOut - visibleCols)}
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                       </button>
                     </>
                   )}
 
-                  {/* Bottom fade + expand pill - on scroll viewport edge */}
+                  {/* Bottom fade + expand pill */}
                   {hasMoreRows && (
                     <>
                       <div className="absolute left-0 right-0 bottom-0 h-10 pointer-events-none rounded-b-lg" style={{ background: "linear-gradient(to bottom, transparent, var(--card-bg))" }} />
-                      <button
-                        onClick={() => setVisibleRows(Math.min(visibleRows + PAGE_SIZE, nIn))}
-                        className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-1 rounded-full bg-surface-elevated/90 backdrop-blur-sm border border-card-border text-[10px] text-muted hover:text-foreground hover:border-muted transition-all cursor-pointer shadow-sm z-10"
-                        title={`Show more rows (${visibleRows}/${nIn})`}
-                      >
+                      <button onClick={() => setVisibleRows(Math.min(visibleRows + PAGE_SIZE, nIn))} className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-1 rounded-full bg-surface-elevated/90 backdrop-blur-sm border border-card-border text-[10px] text-muted hover:text-foreground hover:border-muted transition-all cursor-pointer shadow-sm z-10" title={`Show more rows (${visibleRows}/${nIn})`}>
                         +{Math.min(PAGE_SIZE, nIn - visibleRows)}
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                       </button>
                     </>
                   )}
                 </div>
+
+                {/* Color legend bar */}
                 <div className="mt-2 px-1">
-                  <div
-                    className="h-1 rounded-full w-full"
-                    style={{
-                      background: `linear-gradient(to right, ${getColorStops().map(
-                        ([stop, rgb]) => `rgb(${rgb.join(",")}) ${stop * 100}%`,
-                      ).join(", ")})`,
-                    }}
-                  />
+                  <div className="h-1 rounded-full w-full" style={{ background: `linear-gradient(to right, ${getColorStops().map(([stop, rgb]) => `rgb(${rgb.join(",")}) ${stop * 100}%`).join(", ")})` }} />
                   <div className="flex justify-between mt-1">
                     <span className="text-[9px] text-muted">0%</span>
                     <span className="text-[9px] text-muted">25%</span>
@@ -535,31 +337,15 @@ export function LinkabilityHeatmap({ tx, boltzmannResult: precomputed }: Props) 
                   </div>
                 </div>
 
-                {/* Efficiency bar - only shown for CoinJoin txs (metric is CJ-specific) */}
+                {/* Efficiency bar - only shown for CoinJoin txs */}
                 {showEfficiency && (
-                  <motion.div
-                    initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.25 }}
-                    className="flex items-center gap-2 text-[10px] text-muted/60"
-                  >
-                    <span className="shrink-0">
-                      {t("boltzmann.efficiencyLabel", { defaultValue: "Efficiency:" })}
-                    </span>
+                  <motion.div initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.25 }} className="flex items-center gap-2 text-[10px] text-muted/60">
+                    <span className="shrink-0">{t("boltzmann.efficiencyLabel", { defaultValue: "Efficiency:" })}</span>
                     <span className="font-mono">{effPct.toFixed(2)}%</span>
                     <div className="flex-1 h-1 bg-foreground/[0.06] rounded-full overflow-hidden max-w-[120px]">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(effPct, 100)}%`,
-                          backgroundColor:
-                            effPct > 50 ? "#28a065" : effPct > 20 ? "#b59215" : "#d97706",
-                        }}
-                      />
+                      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(effPct, 100)}%`, backgroundColor: effPct > 50 ? "#28a065" : effPct > 20 ? "#b59215" : "#d97706" }} />
                     </div>
-                    <span className="text-muted/40">
-                      (vs. {result.nbCmbnPrfctCj.toLocaleString()} perfect CJ)
-                    </span>
+                    <span className="text-muted/40">(vs. {result.nbCmbnPrfctCj.toLocaleString()} perfect CJ)</span>
                   </motion.div>
                 )}
               </>

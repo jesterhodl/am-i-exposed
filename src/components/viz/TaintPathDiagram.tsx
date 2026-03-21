@@ -11,6 +11,10 @@ import { SVG_COLORS } from "./shared/svgConstants";
 import { ChartDefs } from "./shared/ChartDefs";
 import { ChartTooltip, useChartTooltip } from "./shared/ChartTooltip";
 import { buildTaintGraph } from "./taint/taint-graph-builder";
+import { TaintNodeShape } from "./taint/TaintNodeShape";
+import { TaintTooltipContent } from "./taint/TaintTooltipContent";
+import type { TaintTooltipData } from "./taint/TaintTooltipContent";
+import { TaintLegend } from "./taint/TaintLegend";
 import type { TaintNode } from "./taint/taint-graph-builder";
 import type { Finding } from "@/lib/types";
 import type { TraceLayer } from "@/lib/analysis/chain/recursive-trace";
@@ -21,30 +25,13 @@ import type { TraceLayer } from "@/lib/analysis/chain/recursive-trace";
  * Shows how taint flows through the transaction graph across multiple hops.
  * Each column represents a hop depth, nodes are transactions,
  * and edges show value flow with taint coloring.
- *
- * When backwardLayers/forwardLayers are provided, uses real trace data
- * (actual transactions at each depth). Falls back to findings-based
- * approximation when trace layers are unavailable.
  */
 
 interface TaintPathDiagramProps {
   findings: Finding[];
-  /** Backward trace layers from chain analysis. */
   backwardLayers?: TraceLayer[] | null;
-  /** Forward trace layers from chain analysis. */
   forwardLayers?: TraceLayer[] | null;
-  /** Callback when a transaction node is clicked */
   onTxClick?: (txid: string) => void;
-}
-
-interface TooltipData {
-  label: string;
-  type: string;
-  taintPct: number;
-  entityName?: string;
-  category?: string;
-  hops?: number;
-  clickTarget?: string;
 }
 
 const NODE_RADIUS = 16;
@@ -84,7 +71,7 @@ function TaintPath({
   forwardLayers?: TraceLayer[] | null;
   onTxClick?: (txid: string) => void;
   t: (key: string, opts?: Record<string, unknown>) => string;
-  tooltip: ReturnType<typeof useChartTooltip<TooltipData>>;
+  tooltip: ReturnType<typeof useChartTooltip<TaintTooltipData>>;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const { nodes, edges } = useMemo(
@@ -97,7 +84,6 @@ function TaintPath({
   const maxDepth = Math.max(...depths);
   const cols = maxDepth - minDepth + 1;
 
-  // Content-driven width: always give columns enough space
   const requiredWidth = cols * COL_WIDTH + MARGIN.left + MARGIN.right;
   const svgWidth = Math.max(width, requiredWidth);
   const innerWidth = svgWidth - MARGIN.left - MARGIN.right;
@@ -172,7 +158,6 @@ function TaintPath({
             const y1 = getY(src.depth, src.y);
             const x2 = getX(tgt.depth);
             const y2 = getY(tgt.depth, tgt.y);
-
             const isTainted = edge.taintPct > 50;
             const midX = (x1 + x2) / 2;
 
@@ -207,21 +192,15 @@ function TaintPath({
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
                 style={{ cursor: node.clickTarget && onTxClick ? "pointer" : "default" }}
-                onClick={() => {
-                  if (node.clickTarget && onTxClick) onTxClick(node.clickTarget);
-                }}
+                onClick={() => { if (node.clickTarget && onTxClick) onTxClick(node.clickTarget); }}
                 onMouseEnter={(e: React.MouseEvent) => {
                   const rect = containerRef.current?.getBoundingClientRect();
                   if (!rect) return;
                   tooltip.showTooltip({
                     tooltipData: {
-                      label: node.label,
-                      type: node.type,
-                      taintPct: node.taintPct,
-                      entityName: node.entityName,
-                      category: node.category,
-                      hops: Math.abs(node.depth),
-                      clickTarget: node.clickTarget,
+                      label: node.label, type: node.type, taintPct: node.taintPct,
+                      entityName: node.entityName, category: node.category,
+                      hops: Math.abs(node.depth), clickTarget: node.clickTarget,
                     },
                     tooltipLeft: e.clientX - rect.left,
                     tooltipTop: e.clientY - rect.top - 8,
@@ -229,74 +208,21 @@ function TaintPath({
                 }}
                 onMouseLeave={tooltip.hideTooltip}
               >
-                {/* Taint ring for nodes with taint */}
-                {node.taintPct > 0 && (
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r={NODE_RADIUS + 4}
-                    fill="none"
-                    stroke={SVG_COLORS.critical}
-                    strokeWidth={2}
-                    strokeOpacity={node.taintPct / 200}
-                    strokeDasharray={`${(node.taintPct / 100) * 2 * Math.PI * (NODE_RADIUS + 4)} ${2 * Math.PI * (NODE_RADIUS + 4)}`}
-                  />
-                )}
-
-                {/* Node shape */}
-                {shape === "circle" && (
-                  <circle cx={cx} cy={cy} r={NODE_RADIUS} fill={color} fillOpacity={0.15} stroke={color} strokeWidth={2} />
-                )}
-                {shape === "square" && (
-                  <rect
-                    x={cx - NODE_RADIUS}
-                    y={cy - NODE_RADIUS}
-                    width={NODE_RADIUS * 2}
-                    height={NODE_RADIUS * 2}
-                    rx={4}
-                    fill={color}
-                    fillOpacity={0.15}
-                    stroke={color}
-                    strokeWidth={2}
-                  />
-                )}
-                {shape === "diamond" && (
-                  <polygon
-                    points={`${cx},${cy - NODE_RADIUS} ${cx + NODE_RADIUS},${cy} ${cx},${cy + NODE_RADIUS} ${cx - NODE_RADIUS},${cy}`}
-                    fill={color}
-                    fillOpacity={0.15}
-                    stroke={color}
-                    strokeWidth={2}
-                  />
-                )}
+                <TaintNodeShape cx={cx} cy={cy} color={color} shape={shape} taintPct={node.taintPct} />
 
                 {/* Node label */}
-                <Text
-                  x={cx}
-                  y={cy + NODE_RADIUS + 14}
-                  fontSize={10}
-                  fill={SVG_COLORS.muted}
-                  textAnchor="middle"
-                  width={COL_WIDTH - 20}
-                >
+                <Text x={cx} y={cy + NODE_RADIUS + 14} fontSize={10} fill={SVG_COLORS.muted} textAnchor="middle" width={COL_WIDTH - 20}>
                   {(() => {
-                  const label = node.label === "Analyzed TX"
-                    ? t("taintFlow.analyzedTx", { defaultValue: "Analyzed TX" })
-                    : node.label;
-                  return label.length > 16 ? label.slice(0, 14) + "..." : label;
-                })()}
+                    const label = node.label === "Analyzed TX"
+                      ? t("taintFlow.analyzedTx", { defaultValue: "Analyzed TX" })
+                      : node.label;
+                    return label.length > 16 ? label.slice(0, 14) + "..." : label;
+                  })()}
                 </Text>
 
                 {/* Category badge for entities */}
                 {node.category && (
-                  <Text
-                    x={cx}
-                    y={cy + NODE_RADIUS + 26}
-                    fontSize={9}
-                    fill={SVG_COLORS.high}
-                    textAnchor="middle"
-                    fontStyle="italic"
-                  >
+                  <Text x={cx} y={cy + NODE_RADIUS + 26} fontSize={9} fill={SVG_COLORS.high} textAnchor="middle" fontStyle="italic">
                     {node.category}
                   </Text>
                 )}
@@ -311,12 +237,11 @@ function TaintPath({
 
 export function TaintPathDiagram({ findings, backwardLayers, forwardLayers, onTxClick }: TaintPathDiagramProps) {
   const { t } = useTranslation();
-  useTheme(); // re-render on theme change for SVG_COLORS
-  const tooltip = useChartTooltip<TooltipData>();
+  useTheme();
+  const tooltip = useChartTooltip<TaintTooltipData>();
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Render if we have trace layers OR relevant chain analysis findings
   const hasChainData = (backwardLayers && backwardLayers.length > 0)
     || (forwardLayers && forwardLayers.length > 0)
     || findings.some((f) =>
@@ -328,14 +253,11 @@ export function TaintPathDiagram({ findings, backwardLayers, forwardLayers, onTx
       f.id === "chain-trace-summary"
     );
 
-  // Count backward hops to calculate target TX column position for auto-scroll
   const backwardHops = backwardLayers?.length ?? 0;
 
-  // Auto-scroll to center the target transaction (depth=0) in the scroll container
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || backwardHops === 0) return;
-    // Delay slightly to allow SVG to render and determine scrollWidth
     const timer = setTimeout(() => {
       const cols = backwardHops + 1 + (forwardLayers?.length ?? 0);
       const targetColFraction = (backwardHops + 0.5) / cols;
@@ -362,31 +284,7 @@ export function TaintPathDiagram({ findings, backwardLayers, forwardLayers, onTx
         {t("taintFlow.title", { defaultValue: "Taint Flow" })}
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 text-xs text-muted">
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full border-2" style={{ borderColor: SVG_COLORS.bitcoin, background: `${SVG_COLORS.bitcoin}22` }} />
-          {t("taintFlow.targetTx", { defaultValue: "Target TX" })}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded border-2" style={{ borderColor: SVG_COLORS.high, background: `${SVG_COLORS.high}22` }} />
-          {t("taintFlow.knownEntity", { defaultValue: "Known Entity" })}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <svg width="12" height="12" viewBox="0 0 12 12">
-            <polygon points="6,0 12,6 6,12 0,6" fill={`${SVG_COLORS.good}22`} stroke={SVG_COLORS.good} strokeWidth="1.5" />
-          </svg>
-          CoinJoin
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-6 border-t-2" style={{ borderColor: SVG_COLORS.high }} />
-          {t("taintFlow.taintedPath", { defaultValue: "Tainted path" })}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-6 border-t-2 border-dashed" style={{ borderColor: SVG_COLORS.foreground }} />
-          {t("taintFlow.cleanPath", { defaultValue: "Clean path" })}
-        </span>
-      </div>
+      <TaintLegend t={t} />
 
       <div className="relative" ref={containerRef}>
         <div ref={scrollRef} className="overflow-x-auto -mx-4 px-4">
@@ -406,35 +304,9 @@ export function TaintPathDiagram({ findings, backwardLayers, forwardLayers, onTx
           </ParentSize>
         </div>
 
-        {/* Tooltip rendered outside the scroll container to prevent clipping */}
         {tooltip.tooltipOpen && tooltip.tooltipData && (
           <ChartTooltip top={tooltip.tooltipTop} left={tooltip.tooltipLeft} containerRef={containerRef}>
-            <div className="space-y-1">
-              <div className="font-medium">{tooltip.tooltipData.label}</div>
-              <div className="text-xs" style={{ color: TYPE_COLORS[tooltip.tooltipData.type] ?? SVG_COLORS.muted }}>
-                {{ root: "Target transaction", entity: "Known entity", coinjoin: "CoinJoin transaction", regular: "Transaction" }[tooltip.tooltipData.type] ?? tooltip.tooltipData.type}
-              </div>
-              {tooltip.tooltipData.entityName && (
-                <div className="text-xs" style={{ color: SVG_COLORS.high }}>
-                  {tooltip.tooltipData.entityName} ({tooltip.tooltipData.category})
-                </div>
-              )}
-              {tooltip.tooltipData.hops !== undefined && tooltip.tooltipData.hops > 0 && (
-                <div className="text-xs" style={{ color: SVG_COLORS.muted }}>
-                  {t("taintFlow.hopsFromTarget", { count: tooltip.tooltipData.hops, defaultValue: "{{count}} hop from target" })}
-                </div>
-              )}
-              {tooltip.tooltipData.taintPct > 0 && (
-                <div className="text-xs" style={{ color: SVG_COLORS.critical }}>
-                  {t("taintFlow.taintPct", { pct: tooltip.tooltipData.taintPct, defaultValue: "Taint: {{pct}}%" })}
-                </div>
-              )}
-              {tooltip.tooltipData.clickTarget && (
-                <div className="text-xs" style={{ color: SVG_COLORS.bitcoin }}>
-                  {t("taintFlow.clickToAnalyze", { defaultValue: "Click to analyze" })}
-                </div>
-              )}
-            </div>
+            <TaintTooltipContent data={tooltip.tooltipData} t={t} />
           </ChartTooltip>
         )}
       </div>

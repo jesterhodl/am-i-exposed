@@ -6,17 +6,17 @@ import { Text } from "@visx/text";
 import { SVG_COLORS, ANIMATION_DEFAULTS } from "./shared/svgConstants";
 import { formatSats } from "@/lib/format";
 import type { SankeyComputedNode } from "./shared/sankeyTypes";
-import type { NodeDatum } from "./FlowChart";
+import type { FlowNodeDatum } from "./buildFlowGraph";
 
 interface FlowNodeProps {
-  node: SankeyComputedNode<NodeDatum>;
+  node: SankeyComputedNode<FlowNodeDatum>;
   index: number;
   marginH: number;
   reducedMotion: boolean | null;
   lang: string;
   nodeStyle: { fill: string; filter?: string };
   isClickable: boolean;
-  onHoverEnter: (n: SankeyComputedNode<NodeDatum>, e: React.MouseEvent) => void;
+  onHoverEnter: (n: SankeyComputedNode<FlowNodeDatum>, e: React.MouseEvent) => void;
   onHoverLeave: () => void;
   onAddressClick?: (address: string) => void;
   /** Translation function from react-i18next */

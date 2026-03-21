@@ -58,6 +58,24 @@ function classifyCoinJoinOutputs(tx: MempoolTransaction): { equalIndices: number
   return { equalIndices, changeIndices };
 }
 
+/** Per-txid cache for CoinJoin analysis results (cleared when node map identity changes). */
+let _toxicCacheNodes: Map<string, GraphNode> | null = null;
+const _toxicCjCache = new Map<string, boolean>();
+
+function isCachedCoinJoin(nodes: Map<string, GraphNode>, txid: string, tx: MempoolTransaction): boolean {
+  if (_toxicCacheNodes !== nodes) {
+    _toxicCacheNodes = nodes;
+    _toxicCjCache.clear();
+  }
+  let result = _toxicCjCache.get(txid);
+  if (result === undefined) {
+    const cjResult = analyzeCoinJoin(tx);
+    result = cjResult.findings.some(isCoinJoinFinding);
+    _toxicCjCache.set(txid, result);
+  }
+  return result;
+}
+
 /**
  * Detect toxic change merges across the graph.
  *
@@ -80,8 +98,7 @@ export function detectToxicMerges(nodes: Map<string, GraphNode>): ToxicMerge[] {
 
   // For each CoinJoin in the graph
   for (const [txid, node] of nodes) {
-    const cjResult = analyzeCoinJoin(node.tx);
-    if (!cjResult.findings.some(isCoinJoinFinding)) continue;
+    if (!isCachedCoinJoin(nodes, txid, node.tx)) continue;
 
     const { equalIndices, changeIndices } = classifyCoinJoinOutputs(node.tx);
     if (equalIndices.length === 0 || changeIndices.length === 0) continue;

@@ -9,6 +9,61 @@
 
 import type { SankeyExtraProperties } from "d3-sankey";
 
+// ---------------------------------------------------------------------------
+// Base datum types shared between FlowChart and CoinJoinChart
+// ---------------------------------------------------------------------------
+
+/** Fields common to every Sankey node in this project. */
+export interface BaseNodeDatum extends SankeyExtraProperties {
+  id: string;
+  label: string;
+  fullAddress?: string;
+  value: number;
+  /** Known entity name for this address (exchange, darknet, etc.). */
+  entityName?: string;
+}
+
+/** Link datum shared by both FlowChart and CoinJoinChart. */
+export interface LinkDatum extends SankeyExtraProperties {
+  source: string;
+  target: string;
+  value: number;
+}
+
+// ---------------------------------------------------------------------------
+// Anon-set / denomination tier grouping (used by both charts)
+// ---------------------------------------------------------------------------
+
+/** Result of grouping output values into equal-value tiers and unique outputs. */
+export interface DenomGrouping {
+  valueCounts: Map<number, number>;
+  /** Map from output value -> assigned color for tiers with 2+ equal outputs. */
+  groupColors: Map<number, string>;
+}
+
+/**
+ * Compute denomination tier grouping from output value counts.
+ * Both FlowChart (anon-set coloring) and CoinJoinChart (tier nodes) use this.
+ */
+export function computeDenomGrouping(
+  valueCounts: Map<number, number>,
+  palette: readonly string[],
+): DenomGrouping {
+  const groupColors = new Map<number, string>();
+  let ci = 0;
+  for (const [value, count] of valueCounts) {
+    if (count >= 2) {
+      groupColors.set(value, palette[ci % palette.length]);
+      ci++;
+    }
+  }
+  return { valueCounts, groupColors };
+}
+
+// ---------------------------------------------------------------------------
+// Computed layout types (post-Sankey)
+// ---------------------------------------------------------------------------
+
 /** Sankey node after layout computation (x0/x1/y0/y1 are always defined). */
 export type SankeyComputedNode<N extends SankeyExtraProperties> = N & {
   x0: number;

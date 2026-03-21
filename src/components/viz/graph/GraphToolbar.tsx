@@ -1,20 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Search, Loader2, Save, FolderOpen, Link2, Trash2, X, Pencil } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Search, Loader2, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useSavedGraphs } from "@/hooks/useSavedGraphs";
-import { serializeGraph } from "@/lib/graph/saved-graph-types";
-import { encodeGraphToUrl } from "@/lib/graph/graph-url-codec";
 import { truncateId, TXID_RE } from "@/lib/constants";
 import { HeatIcon, FingerprintIcon, GraphIcon, UndoIcon, ResetIcon } from "./icons";
-import type { GraphNode } from "@/lib/graph/graph-reducer";
-import type { GraphState } from "@/lib/graph/graph-reducer";
+import { SaveGraphPanel } from "./SaveGraphPanel";
+import { useSaveLoadShare } from "./useSaveLoadShare";
+import type { GraphNode } from "@/components/viz/graph/types";
 import type { BitcoinNetwork } from "@/lib/bitcoin/networks";
 import type { SavedGraph, GraphAnnotation } from "@/lib/graph/saved-graph-types";
 
 type EdgeMode = "default" | "linkability" | "entropy";
-type Panel = "save" | "load" | null;
 
 interface GraphToolbarProps {
   nodeCount: number;
@@ -75,7 +72,6 @@ export function GraphToolbar(props: GraphToolbarProps) {
     annotateMode: annotateModeActive, onToggleAnnotateMode,
     nodePositionOverrides: posOverrides, annotations: savedAnnotations,
   } = props;
-
   const { t } = useTranslation();
   const atCapacity = nodeCount >= maxNodes;
   // Show save/load/share only in fullscreen modes (alwaysFullscreen or modal), not inline embedded
@@ -96,112 +92,49 @@ export function GraphToolbar(props: GraphToolbarProps) {
     }
   };
 
-  // ─── Save/Load state ──────────────────────────────────────────
-  const { graphs, saveGraph, updateGraph, deleteGraph } = useSavedGraphs();
-  const [activePanel, setActivePanel] = useState<Panel>(null);
-  const [saveName, setSaveName] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // Close panel on outside click
-  useEffect(() => {
-    if (!activePanel) return;
-    const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setActivePanel(null);
-        setConfirmDeleteId(null);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [activePanel]);
-
-  // Auto-clear toast
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(timer);
-  }, [toast]);
-
-  const buildGraphState = useCallback((): GraphState => ({
-    nodes: nodes ?? new Map(),
-    rootTxid: rootTxid ?? "",
-    rootTxids: rootTxids ?? new Set(),
-    maxNodes: 100,
-    undoStack: [],
-    loading: new Set(),
-    errors: new Map(),
-  }), [nodes, rootTxid, rootTxids]);
-
-  const handleSave = useCallback(() => {
-    if (!network) return;
-    const name = saveName.trim() || `Graph - ${truncateId(rootTxid ?? "")}`;
-    const saved = serializeGraph(buildGraphState(), name, network, undefined, undefined, posOverrides, savedAnnotations, props.nodeLabels, props.edgeLabels);
-    const id = saveGraph(saved);
-    if (id) {
-      setToast(t("graphSaveLoad.saved", { defaultValue: "Graph saved" }));
-      setActivePanel(null);
-    } else {
-      setToast(t("graphSaveLoad.limitReached", { defaultValue: "Max 50 saved graphs reached" }));
-    }
-  }, [saveName, rootTxid, buildGraphState, network, saveGraph, t, posOverrides, savedAnnotations, props.nodeLabels, props.edgeLabels]);
-
-  const handleUpdate = useCallback(() => {
-    if (!currentGraphId) return;
-    const state = buildGraphState();
-    const nodesArr = [...state.nodes.values()].map((n) => ({
-      txid: n.txid, depth: n.depth,
-      parentEdge: n.parentEdge ? { ...n.parentEdge } : undefined,
-      childEdge: n.childEdge ? { ...n.childEdge } : undefined,
-    }));
-    updateGraph(currentGraphId, {
-      nodes: nodesArr,
-      rootTxid: state.rootTxid,
-      rootTxids: [...state.rootTxids],
-    });
-    setToast(t("graphSaveLoad.updated", { defaultValue: "Graph updated" }));
-    setActivePanel(null);
-  }, [currentGraphId, buildGraphState, updateGraph, t]);
-
-  const handleShare = useCallback(() => {
-    if (!network) return;
-    const saved = serializeGraph(buildGraphState(), "", network, undefined, undefined, posOverrides, savedAnnotations, props.nodeLabels, props.edgeLabels);
-    const encoded = encodeGraphToUrl(saved);
-    if (!encoded) {
-      setToast(t("graphSaveLoad.tooLarge", { defaultValue: "Graph too large for URL - use JSON export" }));
-      return;
-    }
-    const url = `${window.location.origin}/graph/?network=${network}#graph=${encoded}`;
-    navigator.clipboard.writeText(url).then(
-      () => setToast(t("graphSaveLoad.linkCopied", { defaultValue: "Link copied to clipboard" })),
-      () => setToast("Failed to copy"),
-    );
-  }, [buildGraphState, network, t, posOverrides, savedAnnotations, props.nodeLabels, props.edgeLabels]);
-
-  // Expose handlers for keyboard shortcuts to parent
-  useEffect(() => {
-    props.onRegisterHandlers?.({
-      save: () => {
-        if (!isEmpty && hasSaveLoad) {
-          setActivePanel("save");
-          setSaveName(currentLabel || (rootTxid ? `Graph - ${truncateId(rootTxid)}` : ""));
-        }
-      },
-      open: () => { setActivePanel(activePanel === "load" ? null : "load"); setConfirmDeleteId(null); },
-      share: () => { if (!isEmpty && hasSaveLoad) handleShare(); },
-      focusSearch: () => searchRef.current?.focus(),
-    });
+  // ─── Save/Load/Share (extracted hook) ──────────────────────────
+  const saveLoadShare = useSaveLoadShare({
+    nodes, rootTxid, rootTxids, network, currentGraphId,
+    onLoadSavedGraph, nodePositionOverrides: posOverrides,
+    annotations: savedAnnotations, nodeLabels: props.nodeLabels, edgeLabels: props.edgeLabels,
   });
 
-  const [now] = useState(() => Date.now());
-  const timeAgo = useCallback((ms: number): string => {
-    const secs = Math.floor((now - ms) / 1000);
-    if (secs < 60) return t("graph.timeAgoJustNow", { defaultValue: "just now" });
-    if (secs < 3600) return t("graph.timeAgoMinutesAgo", { count: Math.floor(secs / 60), defaultValue: "{{count}}m ago" });
-    if (secs < 86400) return t("graph.timeAgoHoursAgo", { count: Math.floor(secs / 3600), defaultValue: "{{count}}h ago" });
-    return t("graph.timeAgoDaysAgo", { count: Math.floor(secs / 86400), defaultValue: "{{count}}d ago" });
-  }, [now, t]);
+  // ─── Keyboard shortcut registration ───────────────────────────
+  // Refs hold the latest handler closures so we can register stable
+  // wrapper functions once and always dispatch to the current logic.
+  const handlersRef = useRef({
+    save: () => {},
+    open: () => {},
+    share: () => {},
+    focusSearch: () => {},
+  });
+
+  // Sync handler closures into refs after each render (must be in
+  // useEffect, not during render, to satisfy the React compiler).
+  const { onRegisterHandlers } = props;
+  useEffect(() => {
+    handlersRef.current = {
+      save: () => {
+        if (!isEmpty && hasSaveLoad) {
+          saveLoadShare.setActivePanel("save");
+          saveLoadShare.setSaveName(currentLabel || (rootTxid ? `Graph - ${truncateId(rootTxid)}` : ""));
+        }
+      },
+      open: () => {
+        saveLoadShare.setActivePanel(saveLoadShare.activePanel === "load" ? null : "load");
+        saveLoadShare.setConfirmDeleteId(null);
+      },
+      share: () => { if (!isEmpty && hasSaveLoad) saveLoadShare.handleShare(); },
+      focusSearch: () => searchRef.current?.focus(),
+    };
+
+    onRegisterHandlers?.({
+      save: () => handlersRef.current.save(),
+      open: () => handlersRef.current.open(),
+      share: () => handlersRef.current.share(),
+      focusSearch: () => handlersRef.current.focusSearch(),
+    });
+  });
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 gap-y-2">
@@ -371,125 +304,27 @@ export function GraphToolbar(props: GraphToolbarProps) {
 
       {/* ── Save / Load / Share (right-aligned) ─────────────── */}
       {hasSaveLoad && (
-        <>
-          <div className="ml-auto" />
-          <div ref={panelRef} className="relative flex items-center gap-1.5">
-            <button
-              onClick={() => {
-                setActivePanel(activePanel === "save" ? null : "save");
-                setSaveName(currentLabel || (rootTxid ? `Graph - ${truncateId(rootTxid)}` : ""));
-              }}
-              disabled={isEmpty}
-              className={isEmpty ? btnDisabled : btnOff}
-              title={t("graph.save", { defaultValue: "Save graph (S)" })}
-            >
-              <span className="flex items-center gap-1">
-                <Save size={14} />
-                <span className="hidden sm:inline">{t("graph.saveLabel", { defaultValue: "Save" })}</span>
-              </span>
-            </button>
-
-            {onLoadSavedGraph && (
-              <button
-                onClick={() => { setActivePanel(activePanel === "load" ? null : "load"); setConfirmDeleteId(null); }}
-                className={btnOff}
-                title={t("graph.open", { defaultValue: "Open saved graph (O)" })}
-              >
-                <span className="flex items-center gap-1">
-                  <FolderOpen size={14} />
-                  <span className="hidden sm:inline">{t("graph.openLabel", { defaultValue: "Open" })}</span>
-                </span>
-              </button>
-            )}
-
-            <button
-              onClick={handleShare}
-              disabled={isEmpty}
-              className={isEmpty ? btnDisabled : btnOff}
-              title={t("graph.share", { defaultValue: "Copy share link (C)" })}
-            >
-              <span className="flex items-center gap-1">
-                <Link2 size={14} />
-                <span className="hidden sm:inline">{t("graph.shareLabel", { defaultValue: "Share" })}</span>
-              </span>
-            </button>
-
-            {/* Save panel */}
-            {activePanel === "save" && (
-              <div className="absolute top-full right-0 mt-2 z-30 glass rounded-xl border border-glass-border p-3 w-72">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-foreground">{t("graph.saveGraph", { defaultValue: "Save Graph" })}</span>
-                  <button onClick={() => setActivePanel(null)} className="text-muted hover:text-foreground cursor-pointer"><X size={12} /></button>
-                </div>
-                <input
-                  type="text"
-                  value={saveName}
-                  onChange={(e) => setSaveName(e.target.value)}
-                  placeholder={t("graph.graphName", { defaultValue: "Graph name..." })}
-                  className="w-full bg-surface-inset text-sm text-foreground placeholder:text-muted/60 rounded-lg px-2.5 py-1.5 outline-none border border-card-border mb-2"
-                  autoFocus
-                  onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setActivePanel(null); }}
-                />
-                <div className="flex gap-2">
-                  <button onClick={handleSave} className="flex-1 text-xs bg-bitcoin/20 text-bitcoin hover:bg-bitcoin/30 rounded-lg px-3 py-1.5 transition-colors cursor-pointer">
-                    {t("graph.saveLabel", { defaultValue: "Save" })}
-                  </button>
-                  {currentGraphId && (
-                    <button onClick={handleUpdate} className="flex-1 text-xs bg-surface-inset text-muted hover:text-foreground rounded-lg px-3 py-1.5 transition-colors cursor-pointer border border-card-border">
-                      {t("graph.update", { defaultValue: "Update" })}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Load panel */}
-            {activePanel === "load" && onLoadSavedGraph && (
-              <div className="absolute top-full right-0 mt-2 z-30 glass rounded-xl border border-glass-border w-80 max-h-80 overflow-y-auto">
-                <div className="sticky top-0 glass border-b border-glass-border px-3 py-2 flex items-center justify-between">
-                  <span className="text-xs font-medium text-foreground">{t("graph.savedGraphs", { defaultValue: "Saved Graphs" })}</span>
-                  <button onClick={() => setActivePanel(null)} className="text-muted hover:text-foreground cursor-pointer"><X size={12} /></button>
-                </div>
-                {graphs.length === 0 ? (
-                  <div className="px-3 py-6 text-center text-xs text-muted">{t("graph.noSavedGraphs", { defaultValue: "No saved graphs yet" })}</div>
-                ) : (
-                  <div className="py-1">
-                    {graphs.map((g) => (
-                      <div key={g.id} className="px-3 py-2 hover:bg-white/5 flex items-center gap-2 group">
-                        <button
-                          onClick={() => { onLoadSavedGraph(g); setActivePanel(null); }}
-                          className="flex-1 text-left min-w-0 cursor-pointer"
-                        >
-                          <div className="text-sm text-foreground truncate">{g.name}</div>
-                          <div className="flex items-center gap-2 text-[11px] text-muted mt-0.5">
-                            <span>{g.nodes.length} nodes</span>
-                            {g.network !== network && (
-                              <span className="px-1 rounded bg-severity-medium/20 text-severity-medium">{g.network}</span>
-                            )}
-                            <span>{timeAgo(g.savedAt)}</span>
-                          </div>
-                        </button>
-                        {confirmDeleteId === g.id ? (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button onClick={() => { deleteGraph(g.id); setConfirmDeleteId(null); }} className="text-[10px] text-severity-critical hover:underline cursor-pointer">Delete</button>
-                            <button onClick={() => setConfirmDeleteId(null)} className="text-[10px] text-muted hover:underline cursor-pointer">Cancel</button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmDeleteId(g.id)}
-                            className="opacity-0 group-hover:opacity-100 text-muted hover:text-severity-critical transition-all cursor-pointer shrink-0"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </>
+        <SaveGraphPanel
+          activePanel={saveLoadShare.activePanel}
+          setActivePanel={saveLoadShare.setActivePanel}
+          saveName={saveLoadShare.saveName}
+          setSaveName={saveLoadShare.setSaveName}
+          handleSave={saveLoadShare.handleSave}
+          handleUpdate={saveLoadShare.handleUpdate}
+          handleShare={saveLoadShare.handleShare}
+          graphs={saveLoadShare.graphs}
+          deleteGraph={saveLoadShare.deleteGraph}
+          confirmDeleteId={saveLoadShare.confirmDeleteId}
+          setConfirmDeleteId={saveLoadShare.setConfirmDeleteId}
+          panelRef={saveLoadShare.panelRef}
+          timeAgo={saveLoadShare.timeAgo}
+          isEmpty={isEmpty}
+          currentGraphId={currentGraphId}
+          network={network}
+          onLoadSavedGraph={onLoadSavedGraph}
+          rootTxid={rootTxid}
+          currentLabel={currentLabel}
+        />
       )}
 
       {/* ── Fullscreen toggle (inline mode - always rightmost) ── */}
@@ -506,8 +341,8 @@ export function GraphToolbar(props: GraphToolbarProps) {
       )}
 
       {/* Toast */}
-      {toast && (
-        <span className="text-[10px] text-bitcoin animate-pulse">{toast}</span>
+      {saveLoadShare.toast && (
+        <span className="text-[10px] text-bitcoin animate-pulse">{saveLoadShare.toast}</span>
       )}
     </div>
   );
