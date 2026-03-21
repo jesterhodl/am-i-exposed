@@ -128,7 +128,7 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: true,
     bip47: false,
     silentPayments: true,
-    ownNode: false,
+    ownNode: true,
     tor: true,
     url: "https://cakewallet.com",
   },
