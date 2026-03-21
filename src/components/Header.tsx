@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -52,6 +52,22 @@ export function Header() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [mobileOpen]);
+
+  // Track current hash to make the Graph link context-aware
+  const currentHash = useSyncExternalStore(
+    (cb) => { window.addEventListener("hashchange", cb); return () => window.removeEventListener("hashchange", cb); },
+    () => window.location.hash,
+    () => "",
+  );
+
+  // If on home page with #tx=<txid>, make Graph link include that txid
+  const getNavHref = (item: typeof NAV_ITEMS[number]) => {
+    if (item.href === "/graph/" && currentPath === "/" && currentHash) {
+      const match = currentHash.match(/^#tx=([a-fA-F0-9]{64})$/);
+      if (match) return `/graph/#txid=${match[1]}`;
+    }
+    return item.href;
+  };
 
   const isActive = (href: string) => {
     const normalized = currentPath.replace(/\/$/, "") || "/";
@@ -115,7 +131,7 @@ export function Header() {
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={getNavHref(item)}
                     aria-current={active ? "page" : undefined}
                     aria-label={t(item.labelKey, { defaultValue: item.labelDefault })}
                     className={`relative text-sm px-2.5 lg:px-3 py-2 rounded-lg transition-colors ${
@@ -198,7 +214,7 @@ export function Header() {
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={getNavHref(item)}
                     onClick={() => setMobileOpen(false)}
                     aria-current={active ? "page" : undefined}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${

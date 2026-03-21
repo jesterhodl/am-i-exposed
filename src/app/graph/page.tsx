@@ -9,6 +9,7 @@ import { ChartErrorBoundary } from "@/components/ui/ChartErrorBoundary";
 import { EXAMPLES, TXID_RE } from "@/lib/constants";
 import { decodeGraphFromUrl } from "@/lib/graph/graph-url-codec";
 import { loadSavedGraph } from "@/lib/graph/graph-loader";
+import { savedGraphStore } from "@/hooks/useSavedGraphs";
 import type { MempoolTransaction } from "@/lib/api/types";
 import type { SavedGraph } from "@/lib/graph/saved-graph-types";
 
@@ -163,10 +164,17 @@ export default function GraphPage() {
         const example = TX_EXAMPLES.find((e) => e.input.toLowerCase() === match[1].toLowerCase());
         loadTxid(match[1], example?.labelDefault);
       } else if (!rootTxid) {
-        const example = TX_EXAMPLES[Math.floor(Math.random() * TX_EXAMPLES.length)];
-        if (example) {
-          window.location.hash = `txid=${example.input}`;
-          loadTxid(example.input, example.labelDefault);
+        // Check for saved graphs - load the most recently saved/modified
+        const savedGraphs = savedGraphStore.getSnapshot();
+        if (savedGraphs.length > 0) {
+          handleLoadSavedGraph(savedGraphs[0]);
+        } else {
+          // First visit - random example
+          const example = TX_EXAMPLES[Math.floor(Math.random() * TX_EXAMPLES.length)];
+          if (example) {
+            window.location.hash = `txid=${example.input}`;
+            loadTxid(example.input, example.labelDefault);
+          }
         }
       }
     };

@@ -4,10 +4,12 @@ import { useState, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, Upload } from "lucide-react";
 import { useBookmarks } from "@/hooks/useBookmarks";
+import { useSavedGraphs } from "@/hooks/useSavedGraphs";
 
 export function WorkspaceSettingsPanel() {
   const { t } = useTranslation();
   const { bookmarks, exportBookmarks, importBookmarks } = useBookmarks();
+  const { graphs } = useSavedGraphs();
   const fileRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -17,13 +19,13 @@ export function WorkspaceSettingsPanel() {
   }, []);
 
   const handleExport = useCallback(() => {
-    if (bookmarks.length === 0) {
-      showToast("error", t("workspace.noBookmarks", { defaultValue: "No saved scans to export." }));
+    if (bookmarks.length === 0 && graphs.length === 0) {
+      showToast("error", t("workspace.noData", { defaultValue: "No data to export." }));
       return;
     }
     exportBookmarks();
-    showToast("success", t("workspace.exported", { count: bookmarks.length, defaultValue: "Exported {{count}} scans." }));
-  }, [bookmarks, exportBookmarks, showToast, t]);
+    showToast("success", t("workspace.exported", { bookmarks: bookmarks.length, graphs: graphs.length, defaultValue: "Exported {{bookmarks}} bookmarks and {{graphs}} graphs." }));
+  }, [bookmarks, graphs, exportBookmarks, showToast, t]);
 
   const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -31,16 +33,7 @@ export function WorkspaceSettingsPanel() {
     const reader = new FileReader();
     reader.onload = () => {
       const json = reader.result as string;
-      // Support envelope format: { version: 1, bookmarks: [...] }
-      let importJson = json;
-      try {
-        const parsed = JSON.parse(json);
-        if (parsed && typeof parsed === "object" && Array.isArray(parsed.bookmarks)) {
-          importJson = JSON.stringify(parsed.bookmarks);
-        }
-      } catch { /* fall through to importBookmarks which handles errors */ }
-
-      const result = importBookmarks(importJson);
+      const result = importBookmarks(json);
       if (result.error) {
         showToast("error", t("workspace.importError", { defaultValue: "Import failed. Invalid file format." }));
       } else {
@@ -58,7 +51,7 @@ export function WorkspaceSettingsPanel() {
         {t("workspace.title", { defaultValue: "Workspace" })}
       </p>
       <p className="text-[11px] text-muted/70">
-        {t("workspace.scanCount", { count: bookmarks.length, defaultValue: "{{count}} saved scans" })}
+        {t("workspace.itemCount", { bookmarks: bookmarks.length, graphs: graphs.length, defaultValue: "{{bookmarks}} bookmarks and {{graphs}} graphs saved" })}
       </p>
       <div className="flex gap-2">
         <button
