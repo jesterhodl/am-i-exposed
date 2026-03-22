@@ -269,6 +269,7 @@ interface CombinedPathwayData {
   stepsDefault: string;
   strengthKey: string;
   strengthDefault: string;
+  warnings?: { key: string; default: string }[];
 }
 
 export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
@@ -298,6 +299,24 @@ export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
     stepsDefault: "Swap BTC to XMR via atomic swap, hold in Monero, then swap back to BTC when needed.",
     strengthKey: "pathways.combo.xmr.strength",
     strengthDefault: "Complete chain break. The receiving BTC has zero on-chain link to the original BTC. Strongest privacy option available.",
+    warnings: [
+      {
+        key: "pathways.combo.xmr.warn1",
+        default: "Amount correlation: if you enter with X BTC and exit with a similar amount, an observer can correlate entry and exit. Avoid exiting with a round or similar amount to the entry.",
+      },
+      {
+        key: "pathways.combo.xmr.warn2",
+        default: "Volatility risk: holding XMR exposes you to XMR/BTC price fluctuation. Exit relatively quickly to minimize exposure, but avoid predictable timing patterns.",
+      },
+      {
+        key: "pathways.combo.xmr.warn3",
+        default: "Centralized swap risk: custodial services can block or freeze funds. Use atomic swaps (UnstoppableSwap, Haveno) instead, even if fees are higher.",
+      },
+      {
+        key: "pathways.combo.xmr.warn4",
+        default: "Timing analysis: if entry and exit happen in a short or predictable time window, timing correlation can link them even without on-chain evidence. Use different swap services for each leg.",
+      },
+    ],
   },
   {
     id: "exchange-coinjoin-ln",

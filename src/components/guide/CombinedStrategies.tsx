@@ -60,6 +60,18 @@ export function CombinedStrategies({ expanded, onToggle }: CombinedStrategiesPro
                   <p className="text-xs text-muted leading-relaxed">
                     {t(combo.strengthKey, { defaultValue: combo.strengthDefault })}
                   </p>
+                  {combo.warnings && combo.warnings.length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      {combo.warnings.map((w) => (
+                        <div key={w.key} className="flex items-start gap-1.5">
+                          <AlertTriangle size={11} className="text-severity-medium shrink-0 mt-0.5" />
+                          <p className="text-xs text-foreground/70 leading-relaxed">
+                            {t(w.key, { defaultValue: w.default })}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               <div className="flex items-start gap-1.5 bg-severity-medium/10 rounded-lg px-3 py-2 mt-1">
