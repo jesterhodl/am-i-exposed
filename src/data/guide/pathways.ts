@@ -362,5 +362,19 @@ export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
     stepsDefault: "Buy Monero via P2P (Haveno, cash trade), then atomic swap XMR back to BTC.",
     strengthKey: "pathways.combo.p2pxmr.strength",
     strengthDefault: "Complete chain break - no on-chain link between the P2P purchase and the resulting BTC.",
+    warnings: [
+      {
+        key: "pathways.combo.p2pxmr.warn1",
+        default: "Centralized swap risk: if using a centralized service for the XMR -> BTC leg instead of atomic swaps, funds can be blocked or frozen. Use atomic swaps even if fees are higher.",
+      },
+      {
+        key: "pathways.combo.p2pxmr.warn2",
+        default: "Volatility risk: holding XMR between the P2P purchase and the atomic swap back to BTC exposes you to XMR/BTC price fluctuation. Exit relatively quickly to minimize exposure.",
+      },
+      {
+        key: "pathways.combo.p2pxmr.warn3",
+        default: "Optional churning: sending XMR to yourself one or more times before exiting to BTC adds layers of ring signatures (ring size 16), making it harder for the P2P counterparty to trace the funds. 1 churn adds around 20 minutes of wait. More churns offer diminishing returns with additional volatility exposure.",
+      },
+    ],
   },
 ];
