@@ -54,6 +54,10 @@ export function detectInputType(
 
   const lower = trimmed.toLowerCase();
 
+  // BIP352 Silent Payment addresses (sp1 mainnet, tsp1 testnet/signet)
+  if (/^sp1[02qpzry9x8gf2tvdw0s3jn54khce6mua7l]{54,118}$/.test(lower)) return "address";
+  if (/^tsp1[02qpzry9x8gf2tvdw0s3jn54khce6mua7l]{54,118}$/.test(lower)) return "address";
+
   // Bech32/bech32m mainnet (bc1q for P2WPKH/P2WSH, bc1p for P2TR)
   // Bech32 charset: qpzry9x8gf2tvdw0s3jn54khce6mua7l
   if (/^bc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39,87}$/.test(lower)) return "address";

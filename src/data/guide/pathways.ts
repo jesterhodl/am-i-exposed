@@ -296,7 +296,7 @@ export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
     titleKey: "pathways.combo.xmr.title",
     titleDefault: "BTC -> Monero -> BTC",
     stepsKey: "pathways.combo.xmr.steps",
-    stepsDefault: "Swap BTC to XMR via atomic swap, hold in Monero, then swap back to BTC when needed.",
+    stepsDefault: "Swap BTC to XMR via atomic swap, then swap back to BTC when ready. Minimize the time holding XMR to reduce volatility exposure.",
     strengthKey: "pathways.combo.xmr.strength",
     strengthDefault: "Complete chain break. The receiving BTC has zero on-chain link to the original BTC. Strongest privacy option available.",
     warnings: [
@@ -363,17 +363,13 @@ export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
     titleKey: "pathways.combo.cjp2p.title",
     titleDefault: "CoinJoin -> P2P",
     stepsKey: "pathways.combo.cjp2p.steps",
-    stepsDefault: "After CoinJoin, spend directly to the P2P counterparty on Bisq, Peach Bitcoin, or HodlHodl. RoboSats operates via Lightning - open a channel with a post-mix UTXO first. The CoinJoin already breaks the history - the counterparty cannot trace past the mix.",
+    stepsDefault: "After CoinJoin, spend directly to the P2P counterparty on Bisq, Peach Bitcoin, or HodlHodl. The CoinJoin already breaks the history - the counterparty cannot trace past the mix.",
     strengthKey: "pathways.combo.cjp2p.strength",
     strengthDefault: "CoinJoin provides sufficient history break. The P2P counterparty sees only a CoinJoin output (high anonymity set), not your original funds. This works from both perspectives: as a seller, the buyer cannot trace fund origins; as a buyer, the seller cannot trace where your payment came from.",
     warnings: [
       {
         key: "pathways.combo.cjp2p.warn1",
         default: "P2P only: this strategy is intended only for P2P trades. Sending CoinJoin outputs directly to centralized exchanges can result in funds being flagged, frozen, or blocked, as many exchanges use chain analysis tools that flag CoinJoin outputs.",
-      },
-      {
-        key: "pathways.combo.cjp2p.warn2",
-        default: "RoboSats operates via Lightning, not on-chain. The CoinJoin -> direct spend flow does not apply - open a Lightning channel with a post-mix UTXO first, then trade on RoboSats via that channel.",
       },
     ],
   },
@@ -405,7 +401,7 @@ export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
       },
       {
         key: "pathways.combo.p2pxmr.warn3",
-        default: "Optional churning: sending XMR to yourself one or more times before exiting to BTC adds layers of ring signatures (ring size 16), making it harder for the P2P counterparty to trace the funds. 1 churn adds around 20 minutes of wait. More churns offer diminishing returns with additional volatility exposure.",
+        default: "Optional churning: sending XMR to yourself one or more times before exiting to BTC adds layers of ring signatures (ring size 16), making it harder for the P2P counterparty to trace the funds. 1 churn adds around 10 minutes of wait. More churns offer diminishing returns with additional volatility exposure.",
       },
     ],
   },

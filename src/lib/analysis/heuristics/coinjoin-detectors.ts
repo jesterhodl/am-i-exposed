@@ -220,12 +220,20 @@ export function detectWasabi1(
 
   // Require many distinct input addresses (multi-party evidence)
   const inputAddresses = new Set<string>();
+  const inputValues = new Set<number>();
   for (const v of vin) {
     if (v.prevout?.scriptpubkey_address) {
       inputAddresses.add(v.prevout.scriptpubkey_address);
     }
+    if (v.prevout?.value != null) {
+      inputValues.add(v.prevout.value);
+    }
   }
   if (inputAddresses.size < 5) return null;
+
+  // Wasabi 1.0 participants contribute different input amounts.
+  // If all inputs have the same value, this is a pre-split or custom structure.
+  if (inputValues.size < 2) return null;
 
   // Count output values
   const counts = countOutputValues(spendableOutputs);
@@ -248,13 +256,16 @@ export function detectWasabi1(
   if (changeCount < 1) return null;
 
   // Wasabi 1.0 has a single dominant denomination. If there are multiple
-  // denomination tiers with 3+ outputs each, it's more likely WabiSabi
-  // or a custom multi-tier CoinJoin.
-  let denomTierCount = 0;
-  for (const [, count] of counts) {
-    if (count >= 3) denomTierCount++;
+  // large tiers, it's more likely WabiSabi. Allow small secondary tiers
+  // (change outputs that accidentally share values) but the dominant tier
+  // must be at least 2x larger than any secondary tier.
+  let secondaryMax = 0;
+  for (const [value, count] of counts) {
+    if (value !== bestValue && count > secondaryMax) {
+      secondaryMax = count;
+    }
   }
-  if (denomTierCount > 1) return null;
+  if (secondaryMax > 0 && bestCount < 2 * secondaryMax) return null;
 
   // Equal outputs must go to distinct addresses
   const equalAddresses = new Set<string>();

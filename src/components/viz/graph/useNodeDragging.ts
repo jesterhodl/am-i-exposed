@@ -30,7 +30,7 @@ export function useNodeDragging({
   const justDraggedRef = useRef(false);
 
   const handleNodeMouseDown = useCallback((e: React.MouseEvent, node: LayoutNode) => {
-    if (!onNodePositionChange || !viewTransform || annotateMode) return;
+    if (!onNodePositionChange || annotateMode) return;
     if (e.button !== 0) return; // left click only
     e.stopPropagation();
     nodeDragRef.current = {
@@ -41,11 +41,11 @@ export function useNodeDragging({
       startNodeY: node.y,
       isDragging: false,
     };
-  }, [onNodePositionChange, viewTransform, annotateMode]);
+  }, [onNodePositionChange, annotateMode]);
 
   useEffect(() => {
-    if (!onNodePositionChange || !viewTransform) return;
-    const scale = viewTransform.scale;
+    if (!onNodePositionChange) return;
+    const scale = viewTransform?.scale ?? 1;
 
     const handleMouseMove = (e: MouseEvent) => {
       const drag = nodeDragRef.current;

@@ -90,7 +90,7 @@ export default function Home() {
 
   // Hash routing (refs, hashchange listener, initial hash detection)
   const { pendingHash, dismissPendingHash, skipNextHashChangeRef } = useHashRouting(
-    { analyze, walletAnalyze: wallet.analyze, reset, walletReset: wallet.reset, isThirdPartyApi, setPendingXpub },
+    { analyze, walletAnalyze: wallet.analyze, reset, walletReset: wallet.reset, isThirdPartyApi, setPendingXpub, setXpubTypePrompt },
     localApiStatus,
   );
 

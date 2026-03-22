@@ -13,6 +13,7 @@ interface HashRoutingCallbacks {
   walletReset: () => void;
   isThirdPartyApi: boolean;
   setPendingXpub: (xpub: string | null) => void;
+  setXpubTypePrompt?: (xpub: string | null) => void;
 }
 
 interface HashRoutingResult {
@@ -39,6 +40,7 @@ export function useHashRouting(
   const walletResetRef = useRef(callbacks.walletReset);
   const isThirdPartyRef = useRef(callbacks.isThirdPartyApi);
   const setPendingXpubRef = useRef(callbacks.setPendingXpub);
+  const setXpubTypePromptRef = useRef(callbacks.setXpubTypePrompt);
 
   useEffect(() => {
     analyzeRef.current = callbacks.analyze;
@@ -47,6 +49,7 @@ export function useHashRouting(
     walletResetRef.current = callbacks.walletReset;
     isThirdPartyRef.current = callbacks.isThirdPartyApi;
     setPendingXpubRef.current = callbacks.setPendingXpub;
+    setXpubTypePromptRef.current = callbacks.setXpubTypePrompt;
   });
 
   // Wait for API status to settle before processing initial hash URL.
@@ -101,6 +104,13 @@ export function useHashRouting(
         // Guard: show privacy warning if using a third-party API
         if (isThirdPartyRef.current && !isXpubPrivacyAcked()) {
           setPendingXpubRef.current(xpub);
+          setPendingHashDismissed(true);
+          return;
+        }
+        // Guard: ambiguous xpub/tpub needs script type selection
+        const isAmbiguous = (xpub.startsWith("xpub") || xpub.startsWith("tpub")) && !xpub.includes("(");
+        if (isAmbiguous && setXpubTypePromptRef.current) {
+          setXpubTypePromptRef.current(xpub);
           setPendingHashDismissed(true);
           return;
         }

@@ -131,15 +131,27 @@ describe("analyzeCoinJoin", () => {
   });
 
   it("detects large single-denomination CoinJoin as Wasabi 1.0, impact +20", () => {
+    // Wasabi 1.0: 10+ inputs with varied values (different participants), single denomination output tier
     const tx = makeTx({
-      vin: makeDistinctVins(10),
+      vin: Array.from({ length: 10 }, (_, i) =>
+        makeVin({
+          txid: String(i).padStart(64, "b"),
+          prevout: {
+            scriptpubkey: "",
+            scriptpubkey_asm: "",
+            scriptpubkey_type: "v0_p2wpkh",
+            scriptpubkey_address: `bc1qw1${String(i).padStart(35, "0")}`,
+            value: 80_000 + i * 5_000, // varied input values
+          },
+        }),
+      ),
       vout: [
         ...Array.from({ length: 10 }, () => makeVout({ value: 75_000 })),
         makeVout({ value: 10_000 }),
       ],
     });
     const { findings } = analyzeCoinJoin(tx);
-    // 10+ inputs, single denomination (10 equal) + 1 change = Wasabi 1.0 pattern
+    // 10+ inputs with varied values, single denomination (10 equal) + 1 change = Wasabi 1.0 pattern
     const w1 = findings.find((f) => f.id === "h4-wasabi1");
     expect(w1).toBeDefined();
     expect(w1!.scoreImpact).toBe(20);

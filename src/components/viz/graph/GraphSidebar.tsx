@@ -86,7 +86,7 @@ export function GraphSidebar({
 }: GraphSidebarProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("io");
-  const { bookmarks, addBookmark } = useBookmarks();
+  const { bookmarks, addBookmark, removeBookmark } = useBookmarks();
 
   const result = useMemo<ScoringResult | null>(() => analyzeTransactionSync(tx), [tx]);
   const isBookmarked = bookmarks.some((b) => b.input === tx.txid);
@@ -129,7 +129,9 @@ export function GraphSidebar({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (!isBookmarked) {
+              if (isBookmarked) {
+                removeBookmark(tx.txid);
+              } else {
                 addBookmark({
                   input: tx.txid,
                   type: "txid",

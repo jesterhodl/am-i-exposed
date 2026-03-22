@@ -32,10 +32,12 @@ export function applyCompoundScoringAdjustments(findings: Finding[]): void {
   const allRound = findings.some((f) => f.id === "h1-all-round");
   const h2ChangeForAllRound = findings.find((f) => f.id === "h2-change-detected" && f.scoreImpact < 0);
   if (allRound && h2ChangeForAllRound) {
+    h2ChangeForAllRound.severity = "low";
     h2ChangeForAllRound.confidence = "low";
-    h2ChangeForAllRound.scoreImpact = Math.round(h2ChangeForAllRound.scoreImpact * 0.5);
+    h2ChangeForAllRound.scoreImpact = Math.min(h2ChangeForAllRound.scoreImpact + 5, 0);
+    h2ChangeForAllRound.title = "Change output weakly identifiable (low confidence)";
     h2ChangeForAllRound.description +=
-      " Note: both outputs are round amounts, which weakens this detection. " +
+      " Note: both outputs are round amounts, which significantly weakens this detection. " +
       "The round amount heuristic cannot distinguish payment from change.";
     h2ChangeForAllRound.params = {
       ...h2ChangeForAllRound.params,

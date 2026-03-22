@@ -137,8 +137,8 @@ export function useAnnotationInteraction(
     } else {
       const x = Math.min(drawState.startX, drawState.currentX);
       const y = Math.min(drawState.startY, drawState.currentY);
-      const w = Math.abs(dx);
-      const h = Math.abs(dy);
+      const w = Math.max(Math.abs(dx), 80);
+      const h = Math.max(Math.abs(dy), 60);
       const id = crypto.randomUUID();
       onAdd({ id, type: "rect", x, y, title: "", body: "", width: w, height: h });
       setEditingId(id);
