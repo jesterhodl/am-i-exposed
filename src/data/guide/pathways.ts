@@ -363,9 +363,19 @@ export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
     titleKey: "pathways.combo.cjp2p.title",
     titleDefault: "CoinJoin -> P2P",
     stepsKey: "pathways.combo.cjp2p.steps",
-    stepsDefault: "After CoinJoin, spend directly to the P2P counterparty on Bisq, Peach Bitcoin, HodlHodl, or RoboSats. The CoinJoin already breaks the history - the buyer cannot trace past the mix. An intermediate hop is not necessary since the counterparty has no prior chain analysis context.",
+    stepsDefault: "After CoinJoin, spend directly to the P2P counterparty on Bisq, Peach Bitcoin, or HodlHodl. RoboSats operates via Lightning - open a channel with a post-mix UTXO first. The CoinJoin already breaks the history - the counterparty cannot trace past the mix.",
     strengthKey: "pathways.combo.cjp2p.strength",
-    strengthDefault: "CoinJoin provides sufficient history break. The P2P buyer sees only a CoinJoin output (high anonymity set), not your original funds. Direct spending from post-mix is standard practice.",
+    strengthDefault: "CoinJoin provides sufficient history break. The P2P counterparty sees only a CoinJoin output (high anonymity set), not your original funds. This works from both perspectives: as a seller, the buyer cannot trace fund origins; as a buyer, the seller cannot trace where your payment came from.",
+    warnings: [
+      {
+        key: "pathways.combo.cjp2p.warn1",
+        default: "P2P only: this strategy is intended only for P2P trades. Sending CoinJoin outputs directly to centralized exchanges can result in funds being flagged, frozen, or blocked, as many exchanges use chain analysis tools that flag CoinJoin outputs.",
+      },
+      {
+        key: "pathways.combo.cjp2p.warn2",
+        default: "RoboSats operates via Lightning, not on-chain. The CoinJoin -> direct spend flow does not apply - open a Lightning channel with a post-mix UTXO first, then trade on RoboSats via that channel.",
+      },
+    ],
   },
   {
     id: "atm-coinjoin-ln",
