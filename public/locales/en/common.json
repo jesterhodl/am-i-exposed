@@ -2129,5 +2129,11 @@
   "workspace.imported": "Imported {{count}} scans.",
   "workspace.noBookmarks": "No saved scans to export.",
   "workspace.scanCount": "{{count}} saved scans",
-  "workspace.title": "Workspace"
+  "workspace.title": "Workspace",
+  "xpub.typeLegacy": "Legacy (1...)",
+  "xpub.typeNested": "Nested SegWit (3...)",
+  "xpub.typePromptDesc": "This xpub does not encode the address type. Select which derivation to use:",
+  "xpub.typePromptTitle": "Select address type",
+  "xpub.typeSegwit": "Native SegWit (bc1q...)",
+  "xpub.typeTaproot": "Taproot (bc1p...)"
 }

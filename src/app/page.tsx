@@ -14,7 +14,7 @@ import { HeroSection } from "@/components/HeroSection";
 import { PsbtBanner } from "@/components/PsbtBanner";
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { useWalletAnalysis } from "@/hooks/useWalletAnalysis";
-import { isXpubOrDescriptor, parseAndDerive } from "@/lib/bitcoin/descriptor";
+import { isXpubOrDescriptor, parseAndDerive, type ScriptType } from "@/lib/bitcoin/descriptor";
 import { isPSBT } from "@/lib/bitcoin/psbt";
 import { useNetwork } from "@/context/NetworkContext";
 import { useRecentScans } from "@/hooks/useRecentScans";
@@ -82,6 +82,7 @@ export default function Home() {
   const { bookmarks, removeBookmark, clearBookmarks, exportBookmarks, importBookmarks } = useBookmarks();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pendingXpub, setPendingXpub] = useState<string | null>(null);
+  const [xpubTypePrompt, setXpubTypePrompt] = useState<string | null>(null);
 
   // Detect third-party API (not Umbrel and no custom API)
   const { customApiUrl, isUmbrel, config, localApiStatus } = useNetwork();
@@ -135,13 +136,13 @@ export default function Home() {
     },
   });
 
-  const startXpubScan = useCallback((input: string) => {
+  const startXpubScan = useCallback((input: string, scriptTypeOverride?: ScriptType) => {
     const newHash = `xpub=${encodeURIComponent(input)}`;
     const oldHash = window.location.hash.slice(1);
     if (oldHash !== newHash) skipNextHashChangeRef.current = true;
     window.location.hash = newHash;
     reset();
-    wallet.analyze(input);
+    wallet.analyze(input, scriptTypeOverride);
   }, [reset, wallet, skipNextHashChangeRef]);
 
   const handleXpubConfirm = useCallback(() => {
@@ -153,6 +154,12 @@ export default function Home() {
   const handleSubmit = useCallback((input: string) => {
     if (isXpubOrDescriptor(input)) {
       if (isThirdPartyApi && !isXpubPrivacyAcked()) { setPendingXpub(input); return; }
+      // Ambiguous xpub/tpub: ask user for script type (ypub/zpub/descriptors are unambiguous)
+      const trimmed = input.trim();
+      if ((trimmed.startsWith("xpub") || trimmed.startsWith("tpub")) && !trimmed.includes("(")) {
+        setXpubTypePrompt(input);
+        return;
+      }
       startXpubScan(input);
       return;
     }
@@ -314,6 +321,41 @@ export default function Home() {
           onConfirm={handleXpubConfirm}
           onCancel={handleXpubCancel}
         />
+      )}
+
+      {xpubTypePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-card-bg border border-card-border rounded-xl p-6 max-w-sm w-full mx-4 space-y-4">
+            <h3 className="text-lg font-semibold text-foreground">
+              {t("xpub.typePromptTitle", { defaultValue: "Select address type" })}
+            </h3>
+            <p className="text-sm text-muted">
+              {t("xpub.typePromptDesc", { defaultValue: "This xpub does not encode the address type. Select which derivation to use:" })}
+            </p>
+            <div className="space-y-2">
+              {([
+                ["p2wpkh", "Native SegWit (bc1q...)", t("xpub.typeSegwit", { defaultValue: "Native SegWit (bc1q...)" })],
+                ["p2tr", "Taproot (bc1p...)", t("xpub.typeTaproot", { defaultValue: "Taproot (bc1p...)" })],
+                ["p2sh-p2wpkh", "Nested SegWit (3...)", t("xpub.typeNested", { defaultValue: "Nested SegWit (3...)" })],
+                ["p2pkh", "Legacy (1...)", t("xpub.typeLegacy", { defaultValue: "Legacy (1...)" })],
+              ] as [ScriptType, string, string][]).map(([type, _fallback, label]) => (
+                <button
+                  key={type}
+                  onClick={() => { startXpubScan(xpubTypePrompt, type); setXpubTypePrompt(null); }}
+                  className="w-full text-left px-4 py-2.5 rounded-lg bg-surface-inset hover:bg-surface-elevated border border-card-border/50 hover:border-bitcoin/50 transition-colors text-sm text-foreground cursor-pointer"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setXpubTypePrompt(null)}
+              className="text-sm text-muted hover:text-foreground transition-colors cursor-pointer"
+            >
+              {t("common.cancel", { defaultValue: "Cancel" })}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

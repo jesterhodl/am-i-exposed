@@ -2129,5 +2129,11 @@
   "workspace.imported": "{{count}} scans importados.",
   "workspace.noBookmarks": "Nenhum scan salvo para exportar.",
   "workspace.scanCount": "{{count}} scans salvos",
-  "workspace.title": "Espaco de trabalho"
+  "workspace.title": "Espaco de trabalho",
+  "xpub.typeLegacy": "Legacy (1...)",
+  "xpub.typeNested": "Nested SegWit (3...)",
+  "xpub.typePromptDesc": "Este xpub nao codifica o tipo de endereco. Selecione qual derivacao usar:",
+  "xpub.typePromptTitle": "Selecione o tipo de endereco",
+  "xpub.typeSegwit": "Native SegWit (bc1q...)",
+  "xpub.typeTaproot": "Taproot (bc1p...)"
 }
