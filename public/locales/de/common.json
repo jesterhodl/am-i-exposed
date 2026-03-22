@@ -916,6 +916,8 @@
   "graph.annotation.labelPlaceholder": "Label (max 20)",
   "graph.annotation.titlePlaceholder": "Titel (max 20)",
   "graph.bip47Notification": "BIP47-Benachrichtigung",
+  "graph.bookmark": "Transaktion merken",
+  "graph.bookmarked": "Gemerkt",
   "graph.change": "Wechselgeld",
   "graph.clearToDelete": "Leeren zum Loeschen",
   "graph.coinbase": "Coinbase",

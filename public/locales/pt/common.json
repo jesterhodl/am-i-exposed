@@ -916,6 +916,8 @@
   "graph.annotation.labelPlaceholder": "Rotulo (max 20)",
   "graph.annotation.titlePlaceholder": "Titulo (max 20)",
   "graph.bip47Notification": "Notificacao BIP47",
+  "graph.bookmark": "Marcar transacao",
+  "graph.bookmarked": "Marcada",
   "graph.change": "troco",
   "graph.clearToDelete": "Limpar para excluir",
   "graph.coinbase": "coinbase",

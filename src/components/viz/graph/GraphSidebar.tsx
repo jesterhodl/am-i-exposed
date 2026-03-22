@@ -9,6 +9,7 @@ import { truncateId } from "@/lib/constants";
 import { analyzeTransactionSync } from "@/lib/analysis/analyze-sync";
 import { matchEntitySync } from "@/lib/analysis/entity-filter/entity-match";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { useBookmarks } from "@/hooks/useBookmarks";
 import { IOTab } from "./IOTab";
 import type { MempoolTransaction, MempoolOutspend } from "@/lib/api/types";
 import type { BoltzmannWorkerResult } from "@/lib/analysis/boltzmann-pool";
@@ -85,8 +86,10 @@ export function GraphSidebar({
 }: GraphSidebarProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("io");
+  const { bookmarks, addBookmark } = useBookmarks();
 
   const result = useMemo<ScoringResult | null>(() => analyzeTransactionSync(tx), [tx]);
+  const isBookmarked = bookmarks.some((b) => b.input === tx.txid);
 
   const vsize = calcVsize(tx.weight);
   const feeRate = vsize > 0 ? (tx.fee / vsize).toFixed(1) : "0";
@@ -121,6 +124,28 @@ export function GraphSidebar({
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
               <polyline points="15 3 21 3 21 9" />
               <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isBookmarked) {
+                addBookmark({
+                  input: tx.txid,
+                  type: "txid",
+                  grade: result?.grade ?? "?",
+                  score: result?.score ?? 0,
+                  label: "",
+                });
+              }
+            }}
+            className={`transition-colors cursor-pointer ${isBookmarked ? "text-bitcoin" : "text-muted/60 hover:text-foreground"}`}
+            title={isBookmarked
+              ? t("graph.bookmarked", { defaultValue: "Bookmarked" })
+              : t("graph.bookmark", { defaultValue: "Bookmark transaction" })}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill={isBookmarked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
             </svg>
           </button>
         </div>
