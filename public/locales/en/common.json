@@ -2066,6 +2066,8 @@
   "walletGuide.noCoinJoin3": "Avoid consolidation transactions - they link your addresses together",
   "walletGuide.noCoinJoin4": "For mixing, consider Sparrow Wallet as a companion for CoinJoin before sending to hardware",
   "walletGuide.noCoinJoinTitle": "Hardware wallet? Use coin control instead",
+  "walletGuide.orbotProxy": "Orbot proxy",
+  "walletGuide.orbotVpn": "Orbot VPN",
   "walletGuide.partial": "Partial",
   "walletGuide.recommendedTitle": "Recommended wallets - low on-chain footprint",
   "walletGuide.sendOnly": "Send only",

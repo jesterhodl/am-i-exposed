@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { WalletIcon } from "@/components/ui/WalletIcon";
 import { RECOMMENDED_WALLETS, WALLETS_TO_AVOID, WALLET_CRITERIA } from "@/data/guide/wallets";
 
-function BoolCell({ value }: { value: boolean | "partial" | "native" | "is-node" | "v1-only" | "send-only" | "stowaway" }) {
+function BoolCell({ value }: { value: boolean | "partial" | "native" | "is-node" | "v1-only" | "send-only" | "stowaway" | "orbot-vpn" | "orbot-proxy" }) {
   const { t } = useTranslation();
   if (value === true) return <span className="text-severity-good">&#10003;</span>;
   if (value === false) return <span className="text-muted">&#10007;</span>;
@@ -14,6 +14,8 @@ function BoolCell({ value }: { value: boolean | "partial" | "native" | "is-node"
   if (value === "v1-only") return <span className="text-severity-medium text-xs">{t("walletGuide.v1Only", { defaultValue: "v1 only" })}</span>;
   if (value === "send-only") return <span className="text-severity-medium text-xs">{t("walletGuide.sendOnly", { defaultValue: "Send only" })}</span>;
   if (value === "stowaway") return <span className="text-severity-medium text-xs">{t("walletGuide.stowaway", { defaultValue: "Stowaway" })}</span>;
+  if (value === "orbot-vpn") return <span className="text-severity-medium text-xs">{t("walletGuide.orbotVpn", { defaultValue: "Orbot VPN" })}</span>;
+  if (value === "orbot-proxy") return <span className="text-severity-medium text-xs">{t("walletGuide.orbotProxy", { defaultValue: "Orbot proxy" })}</span>;
   return <span className="text-severity-medium text-xs">{t("walletGuide.partial", { defaultValue: "Partial" })}</span>;
 }
 

@@ -10,7 +10,7 @@ interface WalletEntry {
   bip47: boolean;
   silentPayments: boolean | "send-only";
   ownNode: boolean | "partial" | "is-node";
-  tor: boolean | "partial" | "native";
+  tor: boolean | "partial" | "native" | "orbot-vpn" | "orbot-proxy";
   url: string;
 }
 
@@ -51,7 +51,7 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     bip47: false,
     silentPayments: false,
     ownNode: true,
-    tor: true,
+    tor: "orbot-proxy",
     url: "https://electrum.org",
   },
   {
@@ -103,7 +103,7 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     bip47: false,
     silentPayments: true,
     ownNode: true,
-    tor: "partial",
+    tor: "orbot-vpn",
     url: "https://nunchuk.io",
   },
   {
@@ -142,7 +142,7 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     bip47: false,
     silentPayments: false,
     ownNode: true,
-    tor: "partial",
+    tor: "orbot-proxy",
     url: "https://bullbitcoin.com",
   },
   {
@@ -155,7 +155,7 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     bip47: true,
     silentPayments: "send-only",
     ownNode: true,
-    tor: false,
+    tor: "orbot-vpn",
     url: "https://bluewallet.io",
   },
 ];
