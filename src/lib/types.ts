@@ -1,6 +1,6 @@
 export type InputType = "txid" | "address" | "xpub" | "psbt" | "invalid";
 
-export type AddressType = "p2pkh" | "p2sh" | "p2wpkh" | "p2wsh" | "p2tr" | "unknown";
+export type AddressType = "p2pkh" | "p2sh" | "p2wpkh" | "p2wsh" | "p2tr" | "sp" | "unknown";
 
 export type Severity = "critical" | "high" | "medium" | "low" | "good";
 

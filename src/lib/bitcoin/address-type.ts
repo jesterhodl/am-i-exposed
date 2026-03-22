@@ -5,6 +5,8 @@ import type { AddressType } from "@/lib/types";
  * Supports mainnet (bc1, 1, 3) and testnet/signet (tb1, m, n, 2).
  */
 export function getAddressType(addr: string): AddressType {
+  // BIP352 Silent Payment addresses (sp1 mainnet, tsp1 testnet/signet)
+  if (addr.startsWith("sp1") || addr.startsWith("tsp1")) return "sp";
   if (addr.startsWith("bc1p") || addr.startsWith("tb1p")) return "p2tr";
   if (addr.startsWith("bc1q") || addr.startsWith("tb1q")) {
     // P2WPKH addresses are ~42 chars, P2WSH are ~62 chars
