@@ -123,21 +123,7 @@ export function useAnnotationInteraction(
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < 10) {
-      const id = crypto.randomUUID();
-      onAdd({
-        id,
-        type: "note",
-        x: drawState.startX - DEFAULT_NOTE_W / 2,
-        y: drawState.startY - DEFAULT_NOTE_H / 2,
-        title: "",
-        body: "",
-        width: DEFAULT_NOTE_W,
-        height: DEFAULT_NOTE_H,
-      });
-      setEditingId(id);
-      setEditTitle("");
-      setEditBody("");
-      setSelectedId(id);
+      // Ignore single clicks - only drag-to-create is supported
     } else if (drawState.isCircle) {
       const cx = (drawState.startX + drawState.currentX) / 2;
       const cy = (drawState.startY + drawState.currentY) / 2;

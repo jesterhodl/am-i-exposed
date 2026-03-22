@@ -103,25 +103,7 @@ export function GraphAnnotations({
     </foreignObject>
   );
 
-  const renderShapeEditor = (x: number, y: number, w: number, color: string) => (
-    <foreignObject x={x} y={y} width={w} height={20}>
-      <input
-        autoFocus
-        type="text"
-        value={editTitle}
-        onChange={(e) => setEditTitle(e.target.value.slice(0, 20))}
-        onBlur={flushEdit}
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") flushEdit(); }}
-        placeholder={t("graph.annotation.labelPlaceholder", { defaultValue: "Label (max 20)" })}
-        style={{
-          width: "100%", height: "18px", background: "transparent", color,
-          border: "none", outline: "none",
-          fontSize: "11px", fontWeight: 600, fontFamily: "inherit", padding: "0 2px",
-        }}
-      />
-    </foreignObject>
-  );
+
 
   // ---- Annotation rendering per type ----
 
@@ -174,10 +156,24 @@ export function GraphAnnotations({
           <rect x={a.x} y={a.y} width={w} height={h} rx={4}
             fill={ANNOTATION_ACCENT_FILL} stroke={borderColor} strokeWidth={isSelected ? 1.5 : 1} strokeDasharray="6 4" />
           {isEditing ? (
-            renderShapeEditor(a.x + NOTE_PAD, a.y + h / 2 - 10, w - NOTE_PAD * 2, ANNOTATION_ACCENT)
-          ) : a.title ? (
-            <Text x={a.x + w / 2} y={a.y + h / 2 + 4} fontSize={11} fontWeight={600} fill={ANNOTATION_ACCENT} textAnchor="middle" width={w - NOTE_PAD * 2}>{a.title}</Text>
-          ) : null}
+            renderNoteEditor(a.x + NOTE_PAD, a.y + NOTE_PAD, w - NOTE_PAD * 2, h - NOTE_PAD * 2, ANNOTATION_ACCENT)
+          ) : (
+            <>
+              {a.title && (
+                <Text x={a.x + NOTE_PAD} y={a.y + NOTE_PAD + 13} fontSize={11} fontWeight={600} fill={ANNOTATION_ACCENT} width={w - NOTE_PAD * 2}>{a.title}</Text>
+              )}
+              {a.body && (
+                <Text x={a.x + NOTE_PAD} y={a.y + NOTE_PAD + (a.title ? 28 : 13)} fontSize={10} fill={ANNOTATION_ACCENT} fillOpacity={0.7} width={w - NOTE_PAD * 2}>
+                  {a.body.length > 200 ? a.body.slice(0, 200) + "..." : a.body}
+                </Text>
+              )}
+              {!a.title && !a.body && annotateMode && (
+                <Text x={a.x + w / 2} y={a.y + h / 2 + 4} fontSize={11} fill={ANNOTATION_ACCENT} fillOpacity={0.5} textAnchor="middle">
+                  {t("graph.annotation.doubleClickToEdit", { defaultValue: "Double-click to edit" })}
+                </Text>
+              )}
+            </>
+          )}
           {isSelected && renderDeleteBtn(a.x + w - 4, a.y - 4, a.id)}
           {isSelected && renderResizeHandle(a.x + w, a.y + h, a)}
         </g>
@@ -195,10 +191,19 @@ export function GraphAnnotations({
           <circle cx={a.x} cy={a.y} r={r}
             fill={ANNOTATION_ACCENT_FILL} stroke={borderColor} strokeWidth={isSelected ? 1.5 : 1} strokeDasharray="6 4" />
           {isEditing ? (
-            renderShapeEditor(a.x - r * 0.6, a.y - 10, r * 1.2, ANNOTATION_ACCENT)
-          ) : a.title ? (
-            <Text x={a.x} y={a.y + 4} fontSize={11} fontWeight={600} fill={ANNOTATION_ACCENT} textAnchor="middle" width={r * 1.4}>{a.title}</Text>
-          ) : null}
+            renderNoteEditor(a.x - r * 0.6, a.y - r * 0.4, r * 1.2, r * 0.8, ANNOTATION_ACCENT)
+          ) : (
+            <>
+              {a.title && (
+                <Text x={a.x} y={a.y - (a.body ? 4 : 0) + 4} fontSize={11} fontWeight={600} fill={ANNOTATION_ACCENT} textAnchor="middle" width={r * 1.4}>{a.title}</Text>
+              )}
+              {a.body && (
+                <Text x={a.x} y={a.y + (a.title ? 14 : 4)} fontSize={10} fill={ANNOTATION_ACCENT} fillOpacity={0.7} textAnchor="middle" width={r * 1.2}>
+                  {a.body.length > 80 ? a.body.slice(0, 80) + "..." : a.body}
+                </Text>
+              )}
+            </>
+          )}
           {isSelected && renderDeleteBtn(a.x + r * 0.7, a.y - r * 0.7, a.id)}
         </g>
       );
