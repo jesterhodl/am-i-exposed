@@ -28,6 +28,7 @@ const S: AdversaryTier = "state_adversary";
 export const FINDING_METADATA: Record<string, FindingMeta> = {
   // ── H1: Round Amount Detection ──────────────────────────────────────
   "h1-round-amount":     { adversaryTiers: [P, K], temporality: "historical" },
+  "h1-all-round":        { adversaryTiers: [P, K], temporality: "historical" },
   "h1-round-usd-amount": { adversaryTiers: [P, K], temporality: "historical" },
   "h1-round-eur-amount": { adversaryTiers: [P, K], temporality: "historical" },
 
