@@ -2035,6 +2035,7 @@
   "walletGuide.colOwnNode": "Eigener Node",
   "walletGuide.colPayJoin": "PayJoin",
   "walletGuide.colSilentPay": "SP",
+  "walletGuide.colTrackers": "Tracker",
   "walletGuide.colType": "Typ",
   "walletGuide.colWallet": "Wallet",
   "walletGuide.contradictionP1": "Jedes Wallet hinterlässt einen Fingerabdruck - das ist unvermeidbar. Das Ziel ist nicht, unsichtbar zu sein, sondern von Millionen anderer Nutzer nicht unterscheidbar zu sein.",

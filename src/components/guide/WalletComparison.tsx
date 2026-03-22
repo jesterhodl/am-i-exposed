@@ -68,6 +68,7 @@ export function WalletComparison() {
                 <th className="text-center px-2 py-2 font-medium whitespace-nowrap">{t("walletGuide.colCoinControl", { defaultValue: "Coin Control" })}</th>
                 <th className="text-center px-2 py-2 font-medium">{t("walletGuide.colOwnNode", { defaultValue: "Own Node" })}</th>
                 <th className="text-center px-2 py-2 font-medium">Tor</th>
+                <th className="text-center px-2 py-2 font-medium">{t("walletGuide.colTrackers", { defaultValue: "Trackers" })}</th>
               </tr>
             </thead>
             <tbody>
@@ -95,6 +96,13 @@ export function WalletComparison() {
                   <td className="text-center px-2 py-2"><BoolCell value={w.coinControl} /></td>
                   <td className="text-center px-2 py-2"><BoolCell value={w.ownNode} /></td>
                   <td className="text-center px-2 py-2"><BoolCell value={w.tor} /></td>
+                  <td className="text-center px-2 py-2">
+                    {w.trackers === 0 ? (
+                      <span className="text-severity-good text-xs">0</span>
+                    ) : (
+                      <span className="text-severity-medium text-xs" title={w.trackerDetails}>{w.trackers}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

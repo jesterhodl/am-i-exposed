@@ -2035,6 +2035,7 @@
   "walletGuide.colOwnNode": "No Proprio",
   "walletGuide.colPayJoin": "PayJoin",
   "walletGuide.colSilentPay": "SP",
+  "walletGuide.colTrackers": "Rastreadores",
   "walletGuide.colType": "Tipo",
   "walletGuide.colWallet": "Carteira",
   "walletGuide.contradictionP1": "Toda carteira deixa uma impressao digital - isso e inevitavel. O objetivo nao e ser invisivel, mas ser indistinguivel de milhoes de outros usuarios.",

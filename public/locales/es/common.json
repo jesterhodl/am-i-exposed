@@ -2035,6 +2035,7 @@
   "walletGuide.colOwnNode": "Nodo propio",
   "walletGuide.colPayJoin": "PayJoin",
   "walletGuide.colSilentPay": "SP",
+  "walletGuide.colTrackers": "Rastreadores",
   "walletGuide.colType": "Tipo",
   "walletGuide.colWallet": "Billetera",
   "walletGuide.contradictionP1": "Toda billetera deja una huella - eso es inevitable. El objetivo no es ser invisible, sino ser indistinguible de millones de otros usuarios.",

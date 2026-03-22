@@ -2035,6 +2035,7 @@
   "walletGuide.colOwnNode": "Noeud propre",
   "walletGuide.colPayJoin": "PayJoin",
   "walletGuide.colSilentPay": "SP",
+  "walletGuide.colTrackers": "Traceurs",
   "walletGuide.colType": "Type",
   "walletGuide.colWallet": "Portefeuille",
   "walletGuide.contradictionP1": "Chaque portefeuille laisse une empreinte - c'est inévitable. L'objectif n'est pas d'être invisible, mais d'être indiscernable de millions d'autres utilisateurs.",
