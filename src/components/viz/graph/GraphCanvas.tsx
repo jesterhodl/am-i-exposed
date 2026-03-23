@@ -137,8 +137,8 @@ export function GraphCanvas({
 
   // Report visible count to parent (eliminates redundant layout call)
   useEffect(() => {
-    onLayoutComplete?.({ visibleCount: layoutNodes.length, nodePositions });
-  }, [layoutNodes.length, nodePositions, onLayoutComplete]);
+    onLayoutComplete?.({ visibleCount: layoutNodes.length, nodePositions, containerWidth, containerHeight: containerHeight ?? 0 });
+  }, [layoutNodes.length, nodePositions, onLayoutComplete, containerWidth, containerHeight]);
 
   const svgWidth = Math.max(containerWidth, width);
   const svgHeight = Math.max(isFullscreen ? (containerHeight ?? height) : height, 150);

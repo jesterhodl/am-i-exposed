@@ -28,25 +28,13 @@ const MIN_MARGIN_X = 16;
 /** Fallback vertical padding when no container ref is available. */
 const FALLBACK_PAD_Y = 160;
 
-/** Compute the usable viewport dimensions from container element or window fallback. */
-function getViewportDims(containerEl?: HTMLElement | null) {
-  // Try the passed container first
-  if (containerEl) {
-    const rect = containerEl.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      return { cw: Math.max(rect.width - 16, 100), ch: Math.max(rect.height - 16, 100) };
-    }
-  }
-  // Try finding the graph SVG element directly as second fallback
-  const svg = typeof document !== "undefined" ? document.querySelector<SVGSVGElement>(".overflow-visible") : null;
-  if (svg) {
-    const parent = svg.parentElement;
-    if (parent) {
-      const rect = parent.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        return { cw: Math.max(rect.width - 16, 100), ch: Math.max(rect.height - 16, 100) };
-      }
-    }
+/**
+ * Compute the usable viewport dimensions.
+ * Uses measured container dims from ParentSize (via onLayoutComplete) when available.
+ */
+function getViewportDims(dims?: { width: number; height: number }) {
+  if (dims && dims.width > 0 && dims.height > 0) {
+    return { cw: dims.width, ch: dims.height };
   }
   // Last resort: use window dimensions with padding
   const padX = Math.max(MIN_MARGIN_X * 2, Math.min(48, window.innerWidth * 0.08));
@@ -54,8 +42,8 @@ function getViewportDims(containerEl?: HTMLElement | null) {
 }
 
 /** Compute a ViewTransform that centers the root nodes within the viewport. */
-function computeRootCenterView(roots: LayoutNode[], containerEl?: HTMLElement | null): ViewTransform {
-  const { cw, ch } = getViewportDims(containerEl);
+function computeRootCenterView(roots: LayoutNode[], dims?: { width: number; height: number }): ViewTransform {
+  const { cw, ch } = getViewportDims(dims);
   if (roots.length === 0) return { x: 0, y: 0, scale: 1 };
   const avgX = roots.reduce((s, n) => s + n.x + n.width / 2, 0) / roots.length;
   const avgY = roots.reduce((s, n) => s + n.y + n.height / 2, 0) / roots.length;
@@ -63,9 +51,9 @@ function computeRootCenterView(roots: LayoutNode[], containerEl?: HTMLElement | 
 }
 
 /** Compute a ViewTransform that fits all layout nodes within the viewport. */
-function computeFitView(ln: LayoutNode[], containerEl?: HTMLElement | null): ViewTransform | null {
+function computeFitView(ln: LayoutNode[], dims?: { width: number; height: number }): ViewTransform | null {
   if (ln.length === 0) return null;
-  const { cw, ch } = getViewportDims(containerEl);
+  const { cw, ch } = getViewportDims(dims);
   const minX = Math.min(...ln.map((n) => n.x));
   const minY = Math.min(...ln.map((n) => n.y));
   const maxX = Math.max(...ln.map((n) => n.x + n.width));
@@ -98,7 +86,7 @@ export function GraphExplorer(props: GraphExplorerProps) {
     handleToggleHeatMap, handleToggleFingerprint,
     handleLayoutComplete, handleFullscreenExit,
     restoreSavedGraph, restoreFromLastLoaded,
-    nodePositionsRef,
+    nodePositionsRef, containerDimsRef,
   } = useGraphExplorerState(props.alwaysFullscreen);
 
   const {
@@ -234,7 +222,7 @@ export function GraphExplorer(props: GraphExplorerProps) {
   // Zoom helper
   const zoomBy = useCallback((factor: number) => {
     if (!viewTransform) return;
-    const { cw, ch } = getViewportDims(scrollRef.current);
+    const { cw, ch } = getViewportDims(containerDimsRef.current);
     const cx = cw / 2;
     const cy = ch / 2;
     const gx = (cx - viewTransform.x) / viewTransform.scale;
@@ -257,28 +245,41 @@ export function GraphExplorer(props: GraphExplorerProps) {
     const { layoutNodes: ln } = layoutGraph(props.nodes, props.rootTxid, filter, props.rootTxids, undefined, true);
     // Use rAF to measure after fullscreen layout settles
     requestAnimationFrame(() => {
-      dispatch({ type: "SET_VIEW_TRANSFORM", vt: computeRootCenterView(ln.filter((n) => n.isRoot), scrollRef.current) });
+      dispatch({ type: "SET_VIEW_TRANSFORM", vt: computeRootCenterView(ln.filter((n) => n.isRoot), containerDimsRef.current) });
     });
-  }, [expandFullscreen, props.nodes, props.rootTxid, filter, props.rootTxids, dispatch, scrollRef]);
+  }, [expandFullscreen, props.nodes, props.rootTxid, filter, props.rootTxids, dispatch, containerDimsRef]);
 
   const handleFitView = useCallback(() => {
     const { layoutNodes: ln } = layoutGraph(props.nodes, props.rootTxid, filter, props.rootTxids, undefined, true);
-    const vt = computeFitView(ln, scrollRef.current);
+    const vt = computeFitView(ln, containerDimsRef.current);
     if (vt) dispatch({ type: "SET_VIEW_TRANSFORM", vt });
-  }, [props.nodes, props.rootTxid, filter, props.rootTxids, dispatch, scrollRef]);
+  }, [props.nodes, props.rootTxid, filter, props.rootTxids, dispatch, containerDimsRef]);
 
-  // Auto-center on root change in alwaysFullscreen mode
+  // Auto-center on root change in alwaysFullscreen mode.
+  // Retries until containerDimsRef has real values from ParentSize.
   const prevRootRef = useRef<string>("");
   useEffect(() => {
     if (!props.alwaysFullscreen || !props.rootTxid || props.nodes.size === 0) return;
     if (prevRootRef.current === props.rootTxid) return;
     prevRootRef.current = props.rootTxid;
-    // Double rAF ensures the container has its final dimensions after mount
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+
+    const doCenter = () => {
+      const dims = containerDimsRef.current;
+      if (!dims || dims.width === 0 || dims.height === 0) return false;
       const { layoutNodes: ln } = layoutGraph(props.nodes, props.rootTxid, filter, props.rootTxids, undefined, true);
       const roots = ln.filter((n) => n.isRoot);
-      if (roots.length > 0) dispatch({ type: "SET_VIEW_TRANSFORM", vt: computeRootCenterView(roots, scrollRef.current) });
-    }));
+      if (roots.length > 0) dispatch({ type: "SET_VIEW_TRANSFORM", vt: computeRootCenterView(roots, dims) });
+      return true;
+    };
+
+    // Try immediately, then retry up to 10 times at 50ms intervals
+    // until ParentSize has measured the container
+    let attempts = 0;
+    const tryCenter = () => {
+      if (doCenter()) return;
+      if (++attempts < 10) requestAnimationFrame(tryCenter);
+    };
+    requestAnimationFrame(tryCenter);
   }, [props.alwaysFullscreen, props.rootTxid, props.nodes, filter, props.rootTxids, dispatch]);
 
   // ─── Stable callbacks ──────────────────────────────────

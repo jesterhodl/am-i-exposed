@@ -264,10 +264,17 @@ export function useGraphExplorerState(alwaysFullscreen?: boolean) {
   }, []);
 
   const nodePositionsRef = useRef<Map<string, { x: number; y: number; w: number; h: number }>>(new Map());
+  const containerDimsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
-  const handleLayoutComplete = useCallback((info: { visibleCount: number; nodePositions: Map<string, { x: number; y: number; w: number; h: number }> }) => {
+  const handleLayoutComplete = useCallback((info: {
+    visibleCount: number;
+    nodePositions: Map<string, { x: number; y: number; w: number; h: number }>;
+    containerWidth: number;
+    containerHeight: number;
+  }) => {
     dispatch({ type: "SET_VISIBLE_COUNT", count: info.visibleCount });
     nodePositionsRef.current = info.nodePositions;
+    containerDimsRef.current = { width: info.containerWidth, height: info.containerHeight };
   }, []);
 
   const handleFullscreenExit = useCallback(() => {
@@ -301,5 +308,6 @@ export function useGraphExplorerState(alwaysFullscreen?: boolean) {
     restoreSavedGraph,
     restoreFromLastLoaded,
     nodePositionsRef,
+    containerDimsRef,
   };
 }
