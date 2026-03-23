@@ -10,6 +10,7 @@ interface UseNodeDraggingParams {
 interface UseNodeDraggingReturn {
   draggingTxid: string | null;
   handleNodeMouseDown: (e: React.MouseEvent, node: LayoutNode) => void;
+  handleNodeTouchStart: (e: React.TouchEvent, node: LayoutNode) => void;
   justDraggedRef: React.RefObject<boolean>;
 }
 
@@ -37,6 +38,21 @@ export function useNodeDragging({
       txid: node.txid,
       startMouseX: e.clientX,
       startMouseY: e.clientY,
+      startNodeX: node.x,
+      startNodeY: node.y,
+      isDragging: false,
+    };
+  }, [onNodePositionChange, viewTransform, annotateMode]);
+
+  // Touch support: long-press initiates drag on mobile
+  const handleNodeTouchStart = useCallback((e: React.TouchEvent, node: LayoutNode) => {
+    if (!onNodePositionChange || !viewTransform || annotateMode) return;
+    if (e.touches.length !== 1) return; // single finger only
+    const touch = e.touches[0];
+    nodeDragRef.current = {
+      txid: node.txid,
+      startMouseX: touch.clientX,
+      startMouseY: touch.clientY,
       startNodeX: node.x,
       startNodeY: node.y,
       isDragging: false,
@@ -72,13 +88,44 @@ export function useNodeDragging({
       setDraggingTxid(null);
     };
 
+    const handleTouchMove = (e: TouchEvent) => {
+      const drag = nodeDragRef.current;
+      if (!drag || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - drag.startMouseX;
+      const dy = touch.clientY - drag.startMouseY;
+      if (!drag.isDragging && Math.sqrt(dx * dx + dy * dy) < 8) return;
+      drag.isDragging = true;
+      // Prevent scroll while dragging a node
+      e.preventDefault();
+      setDraggingTxid(drag.txid);
+      const newX = drag.startNodeX + dx / scale;
+      const newY = drag.startNodeY + dy / scale;
+      onNodePositionChange(drag.txid, newX, newY);
+    };
+
+    const handleTouchEnd = () => {
+      const drag = nodeDragRef.current;
+      if (!drag) return;
+      if (drag.isDragging) {
+        justDraggedRef.current = true;
+        requestAnimationFrame(() => { justDraggedRef.current = false; });
+      }
+      nodeDragRef.current = null;
+      setDraggingTxid(null);
+    };
+
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleTouchEnd);
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
     };
   }, [onNodePositionChange, viewTransform]);
 
-  return { draggingTxid, handleNodeMouseDown, justDraggedRef };
+  return { draggingTxid, handleNodeMouseDown, handleNodeTouchStart, justDraggedRef };
 }

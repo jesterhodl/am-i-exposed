@@ -49,6 +49,7 @@ interface GraphNodeRendererProps {
   handleNodeClick: (node: LayoutNode, currentSelectedTxid: string | null) => void;
   handleNodeDoubleClick: (node: LayoutNode) => void;
   handleNodeMouseDown: (e: React.MouseEvent, node: LayoutNode) => void;
+  handleNodeTouchStart?: (e: React.TouchEvent, node: LayoutNode) => void;
   justDraggedRef: React.RefObject<boolean>;
   draggingTxid: string | null;
   setHoveredNode: (txid: string | null) => void;
@@ -96,6 +97,7 @@ export function GraphNodeRenderer({
   handleNodeClick,
   handleNodeDoubleClick,
   handleNodeMouseDown,
+  handleNodeTouchStart,
   justDraggedRef,
   draggingTxid,
   setHoveredNode,
@@ -289,6 +291,7 @@ export function GraphNodeRenderer({
         x={node.x} y={node.y} width={node.width} height={node.height} rx={8} fill="transparent"
         style={{ cursor: draggingTxid === node.txid ? "grabbing" : onNodePositionChange && viewTransform ? "grab" : "pointer" }}
         onMouseDown={(e) => handleNodeMouseDown(e, node)}
+        onTouchStart={handleNodeTouchStart ? (e) => handleNodeTouchStart(e, node) : undefined}
         onClick={() => { if (!justDraggedRef.current) handleNodeClick(node, selectedNode?.txid ?? null); }}
         onDoubleClick={(e) => { e.stopPropagation(); handleNodeDoubleClick(node); }}
       />

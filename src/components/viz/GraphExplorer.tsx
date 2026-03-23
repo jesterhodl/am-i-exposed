@@ -23,14 +23,16 @@ import type { GraphAnnotation, SavedGraph } from "@/lib/graph/saved-graph-types"
 // Re-export types for consumers that import from this file
 export type { GraphExplorerProps } from "./graph/types";
 
-/** Horizontal padding subtracted from window.innerWidth for viewport calculations. */
-const VIEWPORT_PAD_X = 32;
 /** Vertical padding subtracted from window.innerHeight for viewport calculations. */
 const VIEWPORT_PAD_Y = 160;
+/** Minimum horizontal margin on each side for small screens. */
+const MIN_MARGIN_X = 16;
 
 /** Compute the usable viewport dimensions (window minus padding). */
 function getViewportDims() {
-  return { cw: window.innerWidth - VIEWPORT_PAD_X, ch: window.innerHeight - VIEWPORT_PAD_Y };
+  // On small screens (<400px), use tighter padding to maximize usable space.
+  const padX = Math.max(MIN_MARGIN_X * 2, Math.min(48, window.innerWidth * 0.08));
+  return { cw: window.innerWidth - padX, ch: window.innerHeight - VIEWPORT_PAD_Y };
 }
 
 /** Compute a ViewTransform that centers the root nodes within the viewport. */
@@ -53,7 +55,10 @@ function computeFitView(ln: LayoutNode[]): ViewTransform | null {
   const nodesW = maxX - minX;
   const nodesH = maxY - minY;
   const s = Math.min(cw / nodesW, ch / nodesH, 1.5);
-  return { x: (cw - nodesW * s) / 2 - minX * s, y: (ch - nodesH * s) / 2 - minY * s, scale: s };
+  const rawX = (cw - nodesW * s) / 2 - minX * s;
+  // Ensure nodes don't clip the left edge on small screens
+  const x = Math.max(rawX, MIN_MARGIN_X - minX * s);
+  return { x, y: (ch - nodesH * s) / 2 - minY * s, scale: s };
 }
 
 /**

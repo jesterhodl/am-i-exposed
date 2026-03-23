@@ -80,7 +80,7 @@ export function GraphCanvas({
   }, []);
 
   // ─── Node dragging ──────────────────────────────────────────────
-  const { draggingTxid, handleNodeMouseDown, justDraggedRef } = useNodeDragging({
+  const { draggingTxid, handleNodeMouseDown, handleNodeTouchStart, justDraggedRef } = useNodeDragging({
     onNodePositionChange,
     viewTransform,
     annotateMode,
@@ -319,7 +319,11 @@ export function GraphCanvas({
         width={viewTransform ? containerWidth : svgWidth}
         height={viewTransform ? (containerHeight ?? svgHeight) : svgHeight}
         className="overflow-visible"
-        style={viewTransform ? { cursor: isPanning ? "grabbing" : "grab", touchAction: "none" } : undefined}
+        style={{
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          ...(viewTransform ? { cursor: isPanning ? "grabbing" : "grab", touchAction: "none" } : {}),
+        }}
         onClick={(e) => {
           if (e.target === e.currentTarget) setSelectedNode(null);
         }}
@@ -426,6 +430,7 @@ export function GraphCanvas({
             handleNodeClick={handleNodeClick}
             handleNodeDoubleClick={handleNodeDoubleClick}
             handleNodeMouseDown={handleNodeMouseDown}
+            handleNodeTouchStart={handleNodeTouchStart}
             justDraggedRef={justDraggedRef}
             draggingTxid={draggingTxid}
             setHoveredNode={setHoveredNode}
