@@ -146,8 +146,7 @@ export const analyzeAddressReuse: AddressHeuristic = (address, _utxos, txs) => {
           `Address reuse is the single most damaging privacy practice in Bitcoin.`,
         recommendation:
           "Use a wallet that generates a new address for every receive (HD wallets). Never share the same address twice. " +
-          "Consider migrating to a BIP352 Silent Payment address to eliminate address reuse by protocol design (supported by Cake Wallet, Silentium, Bitcoin Core 28+). " +
-          "Send remaining funds to a new address using coin control. For stronger unlinking, use CoinJoin.",
+          "Send remaining funds to a new address using coin control. For stronger unlinking, use CoinJoin - but note that some exchanges may flag CoinJoin transactions.",
         scoreImpact: impact,
         remediation: {
           qualifier: "If you are the owner of this address:",

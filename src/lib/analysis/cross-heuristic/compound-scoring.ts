@@ -25,26 +25,6 @@ export function applyCompoundScoringAdjustments(findings: Finding[]): void {
     };
   }
 
-  // All-round dampening: when all outputs are round amounts (h1-all-round),
-  // change detection is less reliable because the user deliberately crafted
-  // both outputs to be round, neutralizing the round amount signal.
-  // Reduce change detection confidence and impact.
-  const allRound = findings.some((f) => f.id === "h1-all-round");
-  const h2ChangeForAllRound = findings.find((f) => f.id === "h2-change-detected" && f.scoreImpact < 0);
-  if (allRound && h2ChangeForAllRound) {
-    h2ChangeForAllRound.severity = "low";
-    h2ChangeForAllRound.confidence = "low";
-    h2ChangeForAllRound.scoreImpact = Math.min(h2ChangeForAllRound.scoreImpact + 5, 0);
-    h2ChangeForAllRound.title = "Change output weakly identifiable (low confidence)";
-    h2ChangeForAllRound.description +=
-      " Note: both outputs are round amounts, which significantly weakens this detection. " +
-      "The round amount heuristic cannot distinguish payment from change.";
-    h2ChangeForAllRound.params = {
-      ...h2ChangeForAllRound.params,
-      allRoundDampened: 1,
-    };
-  }
-
   // Compound confidence boost: when change detection is corroborated by
   // independent heuristics (wallet fingerprint, peel chain, low entropy),
   // boost its impact. Each corroborator adds -2 impact (max -6).

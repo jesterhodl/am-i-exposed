@@ -25,7 +25,6 @@ interface ExpandedNodeProps {
   onExpandInput: (txid: string, inputIndex: number) => void;
   onExpandOutput: (txid: string, outputIndex: number) => void;
   onNodeClick: () => void;
-  onMouseDown?: (e: React.MouseEvent) => void;
   atCapacity: boolean;
 }
 
@@ -40,7 +39,6 @@ export const ExpandedNode = memo(function ExpandedNode({
   onExpandInput,
   onExpandOutput,
   onNodeClick,
-  onMouseDown,
   atCapacity,
 }: ExpandedNodeProps) {
   const { t } = useTranslation();
@@ -61,7 +59,7 @@ export const ExpandedNode = memo(function ExpandedNode({
   const overflowOutputs = node.tx.vout.length - MAX_VISIBLE_PORTS;
 
   return (
-    <g style={{ cursor: onMouseDown ? "grab" : "pointer" }}>
+    <g style={{ cursor: "pointer" }}>
       {/* Node background */}
       <rect
         x={node.x}
@@ -75,7 +73,6 @@ export const ExpandedNode = memo(function ExpandedNode({
         strokeOpacity={1}
         filter="url(#glow-medium)"
         onClick={onNodeClick}
-        onMouseDown={onMouseDown}
       />
 
       {/* Loading pulse */}

@@ -63,21 +63,19 @@ export const analyzeRoundAmounts: TxHeuristic = (tx, _rawHex?, ctx?) => {
       scoreImpact: -impact,
     });
   } else if (roundOutputCount > 0 && roundOutputCount === outputs.length) {
-    // All outputs are round - this neutralizes change detection via round
-    // amounts but still leaks information (payment amount is identifiable
-    // as one of the round values). Lower confidence since CoinJoin or
-    // batch payments can also produce all-round outputs.
+    // All outputs are round - still leaks information (payment amount is
+    // identifiable as one of the round values), but lower confidence since
+    // CoinJoin or batch payments can also produce all-round outputs.
     findings.push({
-      id: "h1-all-round",
+      id: "h1-round-amount",
       severity: "low",
       confidence: "medium",
       title: "All outputs are round amounts",
       params: { count: roundOutputCount, total: outputs.length },
       description:
-        `All ${outputs.length} outputs are round numbers. This neutralizes the round ` +
-        `amount heuristic for change detection - an observer cannot use amount rounding ` +
-        `alone to distinguish payment from change. However, the payment amount is still ` +
-        `identifiable as one of the round values.`,
+        `All ${outputs.length} outputs are round numbers. While this prevents using ` +
+        `round amounts alone to distinguish payment from change, the payment amount is ` +
+        `still identifiable as one of the round values.`,
       recommendation:
         "Avoid sending round BTC amounts. Even adding a few random sats helps obscure which output is the payment.",
       scoreImpact: -3,

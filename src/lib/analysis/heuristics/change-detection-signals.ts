@@ -69,14 +69,6 @@ export function checkRoundAmount(
   } else if (round1 && !round0) {
     changeIndices.set(0, (changeIndices.get(0) ?? 0) + 1);
     signals.push("non-round output is likely change");
-  } else if (round0 && round1) {
-    // Both outputs are round - this neutralizes the round amount signal
-    // and actively weakens other signals by decrementing both candidates.
-    // A user who crafts both outputs as round is deliberately evading
-    // change detection, making all heuristics less reliable.
-    changeIndices.set(0, (changeIndices.get(0) ?? 0) - 1);
-    changeIndices.set(1, (changeIndices.get(1) ?? 0) - 1);
-    signals.push("both outputs are round amounts - change detection weakened");
   }
 }
 

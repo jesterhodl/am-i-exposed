@@ -28,7 +28,6 @@ const S: AdversaryTier = "state_adversary";
 export const FINDING_METADATA: Record<string, FindingMeta> = {
   // ── H1: Round Amount Detection ──────────────────────────────────────
   "h1-round-amount":     { adversaryTiers: [P, K], temporality: "historical" },
-  "h1-all-round":        { adversaryTiers: [P, K], temporality: "historical" },
   "h1-round-usd-amount": { adversaryTiers: [P, K], temporality: "historical" },
   "h1-round-eur-amount": { adversaryTiers: [P, K], temporality: "historical" },
 
@@ -48,7 +47,6 @@ export const FINDING_METADATA: Record<string, FindingMeta> = {
   // ── H4: CoinJoin Detection ──────────────────────────────────────────
   "h4-whirlpool":            { adversaryTiers: [P], temporality: "historical" },
   "h4-coinjoin":             { adversaryTiers: [P], temporality: "historical" },
-  "h4-wasabi1":              { adversaryTiers: [P], temporality: "historical" },
   "h4-joinmarket":           { adversaryTiers: [P], temporality: "historical" },
   "h4-stonewall":            { adversaryTiers: [P], temporality: "historical" },
   "h4-simplified-stonewall": { adversaryTiers: [P], temporality: "historical" },
