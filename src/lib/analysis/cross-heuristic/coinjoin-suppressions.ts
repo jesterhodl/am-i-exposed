@@ -31,6 +31,11 @@ export function applyCoinJoinSuppressions(findings: Finding[], isStonewall: bool
     if (f.id === "script-mixed") {
       suppressFinding(f, "coinjoin");
     }
+    // Dust spending in CoinJoin context: coordinator fees can be below dust
+    // threshold and this is structural, not a privacy leak
+    if (f.id === "dust-spending") {
+      suppressFinding(f, "coinjoin");
+    }
     // Low entropy is unreliable for CoinJoin structures - the one-to-one
     // assignment model doesn't capture many-to-many Boltzmann ambiguity
     if (f.id === "h5-low-entropy") {

@@ -269,6 +269,7 @@ interface CombinedPathwayData {
   stepsDefault: string;
   strengthKey: string;
   strengthDefault: string;
+  warnings?: { key: string; default: string }[];
 }
 
 export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
@@ -295,9 +296,27 @@ export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
     titleKey: "pathways.combo.xmr.title",
     titleDefault: "BTC -> Monero -> BTC",
     stepsKey: "pathways.combo.xmr.steps",
-    stepsDefault: "Swap BTC to XMR via atomic swap, hold in Monero, then swap back to BTC when needed.",
+    stepsDefault: "Swap BTC to XMR via atomic swap, then swap back to BTC when ready. Minimize the time holding XMR to reduce volatility exposure.",
     strengthKey: "pathways.combo.xmr.strength",
     strengthDefault: "Complete chain break. The receiving BTC has zero on-chain link to the original BTC. Strongest privacy option available.",
+    warnings: [
+      {
+        key: "pathways.combo.xmr.warn1",
+        default: "Amount correlation: if you enter with X BTC and exit with a similar amount, an observer can correlate entry and exit. Avoid exiting with a round or similar amount to the entry.",
+      },
+      {
+        key: "pathways.combo.xmr.warn2",
+        default: "Volatility risk: holding XMR exposes you to XMR/BTC price fluctuation. Exit relatively quickly to minimize exposure, but avoid predictable timing patterns.",
+      },
+      {
+        key: "pathways.combo.xmr.warn3",
+        default: "Centralized swap risk: custodial services can block or freeze funds. Use atomic swaps (UnstoppableSwap, Haveno) instead, even if fees are higher.",
+      },
+      {
+        key: "pathways.combo.xmr.warn4",
+        default: "Timing analysis: if entry and exit happen in a short or predictable time window, timing correlation can link them even without on-chain evidence. Use different swap services for each leg.",
+      },
+    ],
   },
   {
     id: "exchange-coinjoin-ln",
@@ -316,15 +335,43 @@ export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
     stepsDefault: "Can go directly Lightning to Bitcoin via submarine swap (Boltz). The swap service does not know the origin of LN funds but sees the destination address. If multiple swaps are made and outputs later consolidated, the service can link them to one entity. For high-fee periods: swap LN to Liquid (e.g., Boltz), accumulate, then peg out to Bitcoin via a different service (e.g., SideSwap). Non-custodial atomic paths preserve self-custody.",
     strengthKey: "pathways.combo.lnliq.strength",
     strengthDefault: "Breaks the on-chain trail. The swap service sees the destination but not the origin. Use different services for the LN-to-Liquid and Liquid-to-BTC legs. Avoid consolidating multiple swap outputs to prevent linking them.",
+    warnings: [
+      {
+        key: "pathways.combo.lnliq.warn1",
+        default: "Boltz knows: the amounts exchanged and the Liquid addresses receiving funds. Even though Liquid uses confidential transactions, Boltz already knows the amounts from the swap itself.",
+      },
+      {
+        key: "pathways.combo.lnliq.warn2",
+        default: "Consolidation risk: if you merge multiple Boltz swap outputs on Liquid before peg-out, common input ownership applies - Boltz can correlate them to the same entity with known amounts.",
+      },
+      {
+        key: "pathways.combo.lnliq.warn3",
+        default: "SideSwap knows: the destination Bitcoin on-chain address of the peg-out, but not the origin of the Liquid funds.",
+      },
+      {
+        key: "pathways.combo.lnliq.warn4",
+        default: "Collusion risk: if Boltz and SideSwap share information, they can reconstruct the full path from origin to destination, completely breaking the privacy benefit of using Liquid as an intermediary.",
+      },
+      {
+        key: "pathways.combo.lnliq.warn5",
+        default: "BTC on-chain -> Liquid variant: unlike Lightning where the sender is hidden, Boltz can see the origin Bitcoin on-chain address. The LN -> Liquid path is preferable since Lightning hides the sender.",
+      },
+    ],
   },
   {
     id: "coinjoin-p2p",
     titleKey: "pathways.combo.cjp2p.title",
     titleDefault: "CoinJoin -> P2P",
     stepsKey: "pathways.combo.cjp2p.steps",
-    stepsDefault: "After CoinJoin, spend directly to the P2P counterparty on Bisq, Peach Bitcoin, HodlHodl, or RoboSats. The CoinJoin already breaks the history - the buyer cannot trace past the mix. An intermediate hop is not necessary since the counterparty has no prior chain analysis context.",
+    stepsDefault: "After CoinJoin, spend directly to the P2P counterparty on Bisq, Peach Bitcoin, or HodlHodl. The CoinJoin already breaks the history - the counterparty cannot trace past the mix.",
     strengthKey: "pathways.combo.cjp2p.strength",
-    strengthDefault: "CoinJoin provides sufficient history break. The P2P buyer sees only a CoinJoin output (high anonymity set), not your original funds. Direct spending from post-mix is standard practice.",
+    strengthDefault: "CoinJoin provides sufficient history break. The P2P counterparty sees only a CoinJoin output (high anonymity set), not your original funds. This works from both perspectives: as a seller, the buyer cannot trace fund origins; as a buyer, the seller cannot trace where your payment came from.",
+    warnings: [
+      {
+        key: "pathways.combo.cjp2p.warn1",
+        default: "P2P only: this strategy is intended only for P2P trades. Sending CoinJoin outputs directly to centralized exchanges can result in funds being flagged, frozen, or blocked, as many exchanges use chain analysis tools that flag CoinJoin outputs.",
+      },
+    ],
   },
   {
     id: "atm-coinjoin-ln",
@@ -343,5 +390,19 @@ export const COMBINED_PATHWAYS: CombinedPathwayData[] = [
     stepsDefault: "Buy Monero via P2P (Haveno, cash trade), then atomic swap XMR back to BTC.",
     strengthKey: "pathways.combo.p2pxmr.strength",
     strengthDefault: "Complete chain break - no on-chain link between the P2P purchase and the resulting BTC.",
+    warnings: [
+      {
+        key: "pathways.combo.p2pxmr.warn1",
+        default: "Centralized swap risk: if using a centralized service for the XMR -> BTC leg instead of atomic swaps, funds can be blocked or frozen. Use atomic swaps even if fees are higher.",
+      },
+      {
+        key: "pathways.combo.p2pxmr.warn2",
+        default: "Volatility risk: holding XMR between the P2P purchase and the atomic swap back to BTC exposes you to XMR/BTC price fluctuation. Exit relatively quickly to minimize exposure.",
+      },
+      {
+        key: "pathways.combo.p2pxmr.warn3",
+        default: "Optional churning: sending XMR to yourself one or more times before exiting to BTC adds layers of ring signatures (ring size 16), making it harder for the P2P counterparty to trace the funds. 1 churn adds around 10 minutes of wait. More churns offer diminishing returns with additional volatility exposure.",
+      },
+    ],
   },
 ];

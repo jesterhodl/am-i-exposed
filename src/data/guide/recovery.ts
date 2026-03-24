@@ -20,7 +20,7 @@ export const RECOVERY_STEPS: RecoveryStep[] = [
     titleKey: "recoveryFlow.step2Title",
     titleDefault: "CoinJoin your UTXOs",
     descKey: "recoveryFlow.step2Desc",
-    descDefault: "Run your funds through Whirlpool (Sparrow/Ashigaru) or JoinMarket to break the transaction graph. Each CoinJoin cycle adds anonymity set members.",
+    descDefault: "Run your funds through Whirlpool (Ashigaru), JoinMarket, or Wasabi (WabiSabi) to break the transaction graph. Each CoinJoin cycle adds anonymity set members.",
     severity: "high",
   },
   {
@@ -34,7 +34,7 @@ export const RECOVERY_STEPS: RecoveryStep[] = [
     titleKey: "recoveryFlow.step4Title",
     titleDefault: "Spend with coin control - one UTXO per transaction",
     descKey: "recoveryFlow.step4Desc",
-    descDefault: "Select individual UTXOs for each payment using coin control. Never combine multiple post-mix UTXOs in a single transaction - that undoes the CoinJoin.",
+    descDefault: "Select individual UTXOs for each payment using coin control. Prefer spending a single post-mix UTXO per transaction. If one UTXO is not enough, consolidate only the minimum needed for that payment - consider using Stonewall to add ambiguity. Never consolidate all post-mix UTXOs together.",
     severity: "medium",
   },
   {

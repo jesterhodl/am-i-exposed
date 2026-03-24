@@ -60,13 +60,25 @@ export function CombinedStrategies({ expanded, onToggle }: CombinedStrategiesPro
                   <p className="text-xs text-muted leading-relaxed">
                     {t(combo.strengthKey, { defaultValue: combo.strengthDefault })}
                   </p>
+                  {combo.warnings && combo.warnings.length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      {combo.warnings.map((w) => (
+                        <div key={w.key} className="flex items-start gap-1.5">
+                          <AlertTriangle size={11} className="text-severity-medium shrink-0 mt-0.5" />
+                          <p className="text-xs text-foreground/70 leading-relaxed">
+                            {t(w.key, { defaultValue: w.default })}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               <div className="flex items-start gap-1.5 bg-severity-medium/10 rounded-lg px-3 py-2 mt-1">
                 <AlertTriangle size={14} className="text-severity-medium shrink-0 mt-0.5" />
                 <p className="text-xs text-foreground/80 leading-relaxed">
                   {t("pathways.jurisdictionNote", {
-                    defaultValue: "Privacy tool availability and legality vary by jurisdiction. Research your local regulations regarding CoinJoin, atomic swaps, and privacy coins before using these techniques. Some exchanges may flag or restrict accounts that interact with known privacy tools.",
+                    defaultValue: "Privacy tools like CoinJoin and atomic swaps are standard Bitcoin transactions - not illegal anywhere. However, KYC exchanges may flag, delay, or restrict funds that have interacted with privacy tools due to internal compliance policies. If using KYC exchanges, send to your own wallet first. For full freedom, use non-KYC, trustless, and permissionless systems.",
                   })}
                 </p>
               </div>

@@ -9,8 +9,11 @@ interface WalletEntry {
   payJoin: boolean | "v1-only" | "stowaway";
   bip47: boolean;
   silentPayments: boolean | "send-only";
+  coinControl: boolean | "partial";
   ownNode: boolean | "partial" | "is-node";
-  tor: boolean | "partial" | "native";
+  tor: boolean | "partial" | "native" | "orbot-vpn" | "orbot-proxy";
+  trackers: number;
+  trackerDetails?: string;
   url: string;
 }
 
@@ -23,9 +26,11 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     coinJoin: true,
     payJoin: "v1-only",
     bip47: true,
-    silentPayments: false,
+    silentPayments: "send-only",
+    coinControl: true,
     ownNode: true,
     tor: true,
+    trackers: 0,
     url: "https://sparrowwallet.com",
   },
   {
@@ -37,8 +42,10 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: false,
     bip47: false,
     silentPayments: true,
+    coinControl: true,
     ownNode: "is-node",
     tor: true,
+    trackers: 0,
     url: "https://bitcoincore.org",
   },
   {
@@ -50,8 +57,10 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: false,
     bip47: false,
     silentPayments: false,
+    coinControl: true,
     ownNode: true,
-    tor: true,
+    tor: "orbot-proxy",
+    trackers: 0,
     url: "https://electrum.org",
   },
   {
@@ -63,8 +72,10 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: "stowaway",
     bip47: true,
     silentPayments: false,
+    coinControl: true,
     ownNode: true,
     tor: "native",
+    trackers: 0,
     url: "https://ashigaru.rs",
   },
   {
@@ -76,12 +87,15 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: false,
     bip47: false,
     silentPayments: false,
+    coinControl: true,
     ownNode: true,
     tor: "partial",
+    trackers: 1,
+    trackerDetails: "Sentry",
     url: "https://trezor.io/trezor-suite",
   },
   {
-    name: "Blockstream Green",
+    name: "Blockstream App",
     type: ["desktop", "mobile"],
     nSequence: "good",
     antiFeeSniping: true,
@@ -89,8 +103,11 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: false,
     bip47: false,
     silentPayments: "send-only",
+    coinControl: "partial",
     ownNode: true,
     tor: true,
+    trackers: 1,
+    trackerDetails: "Countly",
     url: "https://blockstream.com/green",
   },
   {
@@ -102,8 +119,11 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: false,
     bip47: false,
     silentPayments: true,
+    coinControl: true,
     ownNode: true,
-    tor: "partial",
+    tor: "orbot-vpn",
+    trackers: 2,
+    trackerDetails: "Branch + Google Crashlytics",
     url: "https://nunchuk.io",
   },
   {
@@ -115,8 +135,10 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: false,
     bip47: false,
     silentPayments: "send-only",
+    coinControl: true,
     ownNode: true,
     tor: "native",
+    trackers: 0,
     url: "https://wasabiwallet.io",
   },
   {
@@ -128,8 +150,10 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: true,
     bip47: false,
     silentPayments: true,
-    ownNode: false,
+    coinControl: true,
+    ownNode: true,
     tor: true,
+    trackers: 0,
     url: "https://cakewallet.com",
   },
   {
@@ -141,8 +165,10 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: true,
     bip47: false,
     silentPayments: false,
+    coinControl: true,
     ownNode: true,
-    tor: "partial",
+    tor: "orbot-proxy",
+    trackers: 0,
     url: "https://bullbitcoin.com",
   },
   {
@@ -154,9 +180,27 @@ export const RECOMMENDED_WALLETS: WalletEntry[] = [
     payJoin: false,
     bip47: true,
     silentPayments: "send-only",
+    coinControl: true,
     ownNode: true,
-    tor: false,
+    tor: "orbot-vpn",
+    trackers: 1,
+    trackerDetails: "Bugsnag",
     url: "https://bluewallet.io",
+  },
+  {
+    name: "BitBoxApp",
+    type: ["hardware"],
+    nSequence: "good",
+    antiFeeSniping: true,
+    coinJoin: false,
+    payJoin: false,
+    bip47: false,
+    silentPayments: "send-only",
+    coinControl: true,
+    ownNode: true,
+    tor: "native",
+    trackers: 0,
+    url: "https://bitbox.swiss/bitboxapp/",
   },
 ];
 

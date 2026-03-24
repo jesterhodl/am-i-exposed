@@ -57,7 +57,7 @@ export const MISTAKES: MistakeEntry[] = [
     titleKey: "mistakes.rbfChangeReveal",
     titleDefault: "Fee bump a privacy-sensitive transaction",
     descKey: "mistakes.rbfChangeRevealDesc",
-    descDefault: "Both RBF and CPFP reveal information about change outputs. RBF replacement shows which output value decreased (change), while CPFP reveals change by spending it as a child input. For privacy-sensitive transactions, set an adequate fee upfront to avoid fee bumping entirely.",
+    descDefault: "RBF definitively reveals the change output - when a transaction is replaced, the output that decreased in value is obviously change. CPFP is better for privacy because either the sender or receiver can bump the fee, so a child transaction spending an output does not prove it is change. If fee bumping is necessary on a privacy-sensitive transaction, prefer CPFP over RBF. Ideally, set an adequate fee upfront to avoid fee bumping entirely.",
     triggerFinding: "h6-rbf-signaled",
   },
   {

@@ -32,6 +32,7 @@ import {
   analyzeEntityDetection,
   analyzeRicochet,
   analyzeUtxoAgeSpread,
+  analyzeDustSpending,
 } from "./heuristics";
 
 // --- Transaction heuristics ---
@@ -50,6 +51,7 @@ export const TX_HEURISTICS = [
   { id: "timing", label: "Timing analysis", fn: analyzeTiming },
   { id: "script", label: "Script type analysis", fn: analyzeScriptTypeMix },
   { id: "dust", label: "Dust output detection", fn: analyzeDustOutputs },
+  { id: "dust-spend", label: "Dust spending detection", fn: analyzeDustSpending },
   { id: "h17", label: "Multisig/escrow detection", fn: analyzeMultisigDetection },
   { id: "peel", label: "Peel chain detection", fn: analyzePeelChain },
   { id: "consolidation", label: "Consolidation patterns", fn: analyzeConsolidation },

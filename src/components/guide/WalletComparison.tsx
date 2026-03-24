@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { WalletIcon } from "@/components/ui/WalletIcon";
 import { RECOMMENDED_WALLETS, WALLETS_TO_AVOID, WALLET_CRITERIA } from "@/data/guide/wallets";
 
-function BoolCell({ value }: { value: boolean | "partial" | "native" | "is-node" | "v1-only" | "send-only" | "stowaway" }) {
+function BoolCell({ value }: { value: boolean | "partial" | "native" | "is-node" | "v1-only" | "send-only" | "stowaway" | "orbot-vpn" | "orbot-proxy" }) {
   const { t } = useTranslation();
   if (value === true) return <span className="text-severity-good">&#10003;</span>;
   if (value === false) return <span className="text-muted">&#10007;</span>;
@@ -14,6 +14,8 @@ function BoolCell({ value }: { value: boolean | "partial" | "native" | "is-node"
   if (value === "v1-only") return <span className="text-severity-medium text-xs">{t("walletGuide.v1Only", { defaultValue: "v1 only" })}</span>;
   if (value === "send-only") return <span className="text-severity-medium text-xs">{t("walletGuide.sendOnly", { defaultValue: "Send only" })}</span>;
   if (value === "stowaway") return <span className="text-severity-medium text-xs">{t("walletGuide.stowaway", { defaultValue: "Stowaway" })}</span>;
+  if (value === "orbot-vpn") return <span className="text-severity-medium text-xs">{t("walletGuide.orbotVpn", { defaultValue: "Orbot VPN" })}</span>;
+  if (value === "orbot-proxy") return <span className="text-severity-medium text-xs">{t("walletGuide.orbotProxy", { defaultValue: "Orbot proxy" })}</span>;
   return <span className="text-severity-medium text-xs">{t("walletGuide.partial", { defaultValue: "Partial" })}</span>;
 }
 
@@ -63,8 +65,10 @@ export function WalletComparison() {
                 <th className="text-center px-2 py-2 font-medium whitespace-nowrap">{t("walletGuide.colPayJoin", { defaultValue: "PayJoin" })}</th>
                 <th className="text-center px-2 py-2 font-medium whitespace-nowrap" title="BIP47 / Paynym">{t("walletGuide.colBip47", { defaultValue: "BIP47" })}</th>
                 <th className="text-center px-2 py-2 font-medium whitespace-nowrap" title="Silent Payments (BIP352)">{t("walletGuide.colSilentPay", { defaultValue: "SP" })}</th>
+                <th className="text-center px-2 py-2 font-medium whitespace-nowrap">{t("walletGuide.colCoinControl", { defaultValue: "Coin Control" })}</th>
                 <th className="text-center px-2 py-2 font-medium">{t("walletGuide.colOwnNode", { defaultValue: "Own Node" })}</th>
                 <th className="text-center px-2 py-2 font-medium">Tor</th>
+                <th className="text-center px-2 py-2 font-medium">{t("walletGuide.colTrackers", { defaultValue: "Trackers" })}</th>
               </tr>
             </thead>
             <tbody>
@@ -89,8 +93,16 @@ export function WalletComparison() {
                   <td className="text-center px-2 py-2"><BoolCell value={w.payJoin} /></td>
                   <td className="text-center px-2 py-2"><BoolCell value={w.bip47} /></td>
                   <td className="text-center px-2 py-2"><BoolCell value={w.silentPayments} /></td>
+                  <td className="text-center px-2 py-2"><BoolCell value={w.coinControl} /></td>
                   <td className="text-center px-2 py-2"><BoolCell value={w.ownNode} /></td>
                   <td className="text-center px-2 py-2"><BoolCell value={w.tor} /></td>
+                  <td className="text-center px-2 py-2">
+                    {w.trackers === 0 ? (
+                      <span className="text-severity-good text-xs">0</span>
+                    ) : (
+                      <span className="text-severity-medium text-xs" title={w.trackerDetails}>{w.trackers}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

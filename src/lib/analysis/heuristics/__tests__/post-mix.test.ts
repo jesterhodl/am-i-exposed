@@ -87,7 +87,8 @@ describe("analyzePostMix", () => {
 
     expect(findings).toHaveLength(1);
     expect(findings[0].id).toBe("post-mix-consolidation");
-    expect(findings[0].severity).toBe("high");
+    // 2 of 2 inputs from different CoinJoins = 100% consolidation + cross-round = critical
+    expect(findings[0].severity).toBe("critical");
     expect(findings[0].params?.postMixInputCount).toBe(2);
     expect(findings[0].params?.distinctCoinJoins).toBe(2);
   });

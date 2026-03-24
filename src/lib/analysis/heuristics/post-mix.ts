@@ -17,8 +17,9 @@ import { isCoinbase } from "./tx-utils";
  * check if each input's parent was a CoinJoin.
  *
  * Severity:
- *   - 2 post-mix inputs: high (-12)
- *   - 3+ post-mix inputs: critical (-18)
+ *   Scales by proportion of post-mix inputs to total inputs and by
+ *   number of distinct CoinJoin rounds. Impact range: -6 to -18.
+ *   Cross-round consolidation gets a 1.5x multiplier.
  *
  * Reference: OXT Research, Samourai Wallet documentation
  */
@@ -63,10 +64,20 @@ export const analyzePostMix: TxHeuristic = (tx, _rawHex?, ctx?) => {
   if (coinJoinInputIndices.length < 2) return { findings };
 
   const fromDifferentMixes = coinJoinParentTxids.size >= 2;
-  const isCritical = coinJoinInputIndices.length >= 3;
+  const postMixCount = coinJoinInputIndices.length;
 
+  // Scale severity by proportion of post-mix inputs to total inputs.
+  // Consolidating 2 of 50 inputs is less damaging than consolidating 2 of 2.
+  // Cross-round consolidation (different CoinJoin sources) is worse because
+  // it links activity across multiple mixing rounds.
+  const ratio = postMixCount / tx.vin.length;
+  const roundMultiplier = fromDifferentMixes ? 1.5 : 1.0;
+  const rawImpact = Math.round(
+    -8 * ratio * roundMultiplier * Math.min(postMixCount, 5),
+  );
+  const impact = Math.max(-18, Math.min(-6, rawImpact));
+  const isCritical = impact <= -15;
   const severity = isCritical ? "critical" as const : "high" as const;
-  const impact = isCritical ? -18 : -12;
 
   const sourceDesc = fromDifferentMixes
     ? `from ${coinJoinParentTxids.size} different CoinJoin transactions`
@@ -76,11 +87,12 @@ export const analyzePostMix: TxHeuristic = (tx, _rawHex?, ctx?) => {
     id: "post-mix-consolidation",
     severity,
     confidence: "high",
-    title: `Post-mix consolidation: ${coinJoinInputIndices.length} CoinJoin outputs spent together`,
+    title: `Post-mix consolidation: ${postMixCount} of ${tx.vin.length} inputs are CoinJoin outputs`,
     params: {
-      postMixInputCount: coinJoinInputIndices.length,
+      postMixInputCount: postMixCount,
       totalInputs: tx.vin.length,
       distinctCoinJoins: coinJoinParentTxids.size,
+      ratio: Math.round(ratio * 100),
     },
     description:
       `This transaction spends ${coinJoinInputIndices.length} outputs ${sourceDesc} as inputs ` +

@@ -118,8 +118,9 @@ export const FINDING_METADATA: Record<string, FindingMeta> = {
   "script-mixed":    { adversaryTiers: [P], temporality: "historical" },
 
   // ── Dust Detection ──────────────────────────────────────────────────
-  "dust-attack":  { adversaryTiers: [P, S], temporality: "historical" },
-  "dust-outputs": { adversaryTiers: [P],    temporality: "historical" },
+  "dust-attack":   { adversaryTiers: [P, S], temporality: "historical" },
+  "dust-outputs":  { adversaryTiers: [P],    temporality: "historical" },
+  "dust-spending": { adversaryTiers: [P, K, S], temporality: "historical" },
 
   // ── Entity Detection ────────────────────────────────────────────────
   "entity-ofac-match":          { adversaryTiers: [K, S], temporality: "historical" },
