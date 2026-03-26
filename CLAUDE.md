@@ -99,8 +99,20 @@ After rebuilding, commit the updated files in `public/wasm/boltzmann/`. The work
 
 - **Always run `pnpm test && pnpm lint && pnpm build` before pushing.** CI runs type-check and will fail on type errors that `pnpm test` alone does not catch. Do not push without verifying the build passes locally.
 - After removing or adding dependencies, always run `pnpm install` to sync `pnpm-lock.yaml`. CI uses `--frozen-lockfile` and will fail on mismatches.
-- When releasing to Umbrel (see `docs/deploy-umbrel.md`), **wait for CI to finish building Docker images** before pushing the app store update. The main image takes 5-10 min for arm64 cross-compilation. Pushing the app store first causes Umbrel instances to pull a tag that doesn't exist yet, breaking updates.
 - Use `/deploy` command for the full pipeline: type-check, build, bump version, commit, push, GH Pages, Umbrel release.
+
+### Publish New Umbrel Release
+
+1. Run `pnpm lint && pnpm test && pnpm build` - all must pass
+2. Bump `version` in `package.json` (e.g. `0.35.5` -> `0.35.6`)
+3. Commit: `chore: bump version to X.Y.Z`
+4. Tag: `git tag vX.Y.Z`
+5. Push: `git push origin main --tags` - triggers CI to build both Docker images
+6. Update `~/copexit-umbrel-app-store/copexit-am-i-exposed/`:
+   - `docker-compose.yml`: bump both image tags to `vX.Y.Z`
+   - `umbrel-app.yml`: bump `version` to `X.Y.Z` (no `v` prefix), update `releaseNotes`
+7. Commit and push the app store: `git push origin master`
+8. Verify CI at `github.com/Copexit/am-i-exposed/actions` - main image takes 5-10 min (arm64 cross-compile)
 
 ## Slash Commands
 
