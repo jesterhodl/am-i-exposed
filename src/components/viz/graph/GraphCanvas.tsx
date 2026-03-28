@@ -105,6 +105,7 @@ export function GraphCanvas({
   const { svgRef, wrapperRef, isPanning, handlePanStart } = usePanZoom({
     viewTransform,
     onViewTransformChange,
+    scrollRef,
     onPanStart: handlePanStartDismiss,
     onWheel: handleWheelDismiss,
   });
@@ -340,7 +341,8 @@ export function GraphCanvas({
         style={{
           userSelect: "none",
           WebkitUserSelect: "none",
-          ...(viewTransform ? { cursor: isPanning ? "grabbing" : "grab", touchAction: "none" } : {}),
+          cursor: isPanning ? "grabbing" : "grab",
+          ...(viewTransform ? { touchAction: "none" } : {}),
         }}
         onClick={(e) => {
           if (e.target === e.currentTarget) setSelectedNode(null);
@@ -349,16 +351,14 @@ export function GraphCanvas({
         <ChartDefs />
         <GraphSvgDefs />
 
-        {viewTransform && (
-          <rect
-            width={containerWidth}
-            height={containerHeight ?? svgHeight}
-            fill="black"
-            fillOpacity={0}
-            pointerEvents={annotateMode ? "none" : "all"}
-            onMouseDown={handlePanStart}
-          />
-        )}
+        <rect
+          width={viewTransform ? containerWidth : svgWidth}
+          height={viewTransform ? (containerHeight ?? svgHeight) : svgHeight}
+          fill="black"
+          fillOpacity={0}
+          pointerEvents={annotateMode ? "none" : "all"}
+          onMouseDown={handlePanStart}
+        />
 
         <g transform={viewTransform ? `translate(${viewTransform.x},${viewTransform.y}) scale(${viewTransform.scale})` : undefined}>
 

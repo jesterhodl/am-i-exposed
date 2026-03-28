@@ -5,6 +5,8 @@ import { MIN_ZOOM, MAX_ZOOM } from "./constants";
 interface UsePanZoomOptions {
   viewTransform?: ViewTransform;
   onViewTransformChange?: (vt: ViewTransform) => void;
+  /** Scroll container ref for inline (non-transform) drag-to-scroll panning. */
+  scrollRef?: React.RefObject<HTMLElement | null>;
   /** Called when pan starts to dismiss interactive state (tooltip, selection, etc.). */
   onPanStart?: () => void;
   /** Called on each wheel-zoom event (e.g. to hide tooltips). */
@@ -30,12 +32,13 @@ interface UsePanZoomReturn {
 export function usePanZoom({
   viewTransform,
   onViewTransformChange,
+  scrollRef,
   onPanStart,
   onWheel,
 }: UsePanZoomOptions): UsePanZoomReturn {
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const panRef = useRef({ active: false, startX: 0, startY: 0, vtX: 0, vtY: 0, scale: 1 });
+  const panRef = useRef({ active: false, mode: "transform" as "transform" | "scroll", startX: 0, startY: 0, vtX: 0, vtY: 0, scale: 1, scrollLeft: 0, scrollTop: 0 });
   const pinchRef = useRef({ active: false, startDist: 0, startScale: 1, midX: 0, midY: 0 });
   const viewTransformRef = useRef(viewTransform);
   viewTransformRef.current = viewTransform;
@@ -44,19 +47,32 @@ export function usePanZoom({
   // ─── Mouse pan ─────────────────────────────────────────────────
 
   const handlePanStart = useCallback((e: React.MouseEvent) => {
-    if (!viewTransform || !onViewTransformChange || e.button !== 0) return;
-    e.preventDefault();
-    panRef.current = {
-      active: true,
-      startX: e.clientX,
-      startY: e.clientY,
-      vtX: viewTransform.x,
-      vtY: viewTransform.y,
-      scale: viewTransform.scale,
-    };
-    setIsPanning(true);
-    onPanStart?.();
-  }, [viewTransform, onViewTransformChange, onPanStart]);
+    if (e.button !== 0) return;
+    if (viewTransform && onViewTransformChange) {
+      // Transform-based pan (fullscreen mode)
+      e.preventDefault();
+      panRef.current = {
+        active: true, mode: "transform",
+        startX: e.clientX, startY: e.clientY,
+        vtX: viewTransform.x, vtY: viewTransform.y, scale: viewTransform.scale,
+        scrollLeft: 0, scrollTop: 0,
+      };
+      setIsPanning(true);
+      onPanStart?.();
+    } else if (scrollRef?.current) {
+      // Scroll-based pan (inline mode)
+      e.preventDefault();
+      const el = scrollRef.current;
+      panRef.current = {
+        active: true, mode: "scroll",
+        startX: e.clientX, startY: e.clientY,
+        vtX: 0, vtY: 0, scale: 1,
+        scrollLeft: el.scrollLeft, scrollTop: el.scrollTop,
+      };
+      setIsPanning(true);
+      onPanStart?.();
+    }
+  }, [viewTransform, onViewTransformChange, scrollRef, onPanStart]);
 
   useEffect(() => {
     if (!isPanning) return;
@@ -64,11 +80,19 @@ export function usePanZoom({
       if (!panRef.current.active) return;
       const dx = e.clientX - panRef.current.startX;
       const dy = e.clientY - panRef.current.startY;
-      onViewTransformChange?.({
-        scale: panRef.current.scale,
-        x: panRef.current.vtX + dx,
-        y: panRef.current.vtY + dy,
-      });
+      if (panRef.current.mode === "transform") {
+        onViewTransformChange?.({
+          scale: panRef.current.scale,
+          x: panRef.current.vtX + dx,
+          y: panRef.current.vtY + dy,
+        });
+      } else {
+        const el = scrollRef?.current;
+        if (el) {
+          el.scrollLeft = panRef.current.scrollLeft - dx;
+          el.scrollTop = panRef.current.scrollTop - dy;
+        }
+      }
     };
     const onUp = () => {
       panRef.current.active = false;
@@ -80,7 +104,7 @@ export function usePanZoom({
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
-  }, [isPanning, onViewTransformChange]);
+  }, [isPanning, onViewTransformChange, scrollRef]);
 
   // ─── Wheel-to-zoom ────────────────────────────────────────────
 
@@ -165,12 +189,13 @@ export function usePanZoom({
           const moved = Math.hypot(t.clientX - pendingPan.startX, t.clientY - pendingPan.startY);
           if (moved >= PAN_THRESHOLD) {
             panRef.current = {
-              active: true,
+              active: true, mode: "transform",
               startX: pendingPan.startX,
               startY: pendingPan.startY,
               vtX: pendingPan.vtX,
               vtY: pendingPan.vtY,
               scale: pendingPan.scale,
+              scrollLeft: 0, scrollTop: 0,
             };
             pendingPan = null;
             setIsPanning(true);
